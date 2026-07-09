@@ -7,7 +7,7 @@ const supabase = (supabaseUrl && supabaseAnonKey) ? createClient(supabaseUrl, su
 
 const YAHOO_CLIENT_ID = process.env.YAHOO_CLIENT_ID;
 
-// 商品名クレンジング関数
+// 商品名からノイズ文字列を削ぎ落とす関数
 function cleanItemName(name: string): string {
   if (!name) return "";
   let cleaned = name;
@@ -35,13 +35,7 @@ export async function POST(request: Request) {
         .eq("jan_code", janCode)
         .maybeSingle();
 
-      if (cachedItem) {
-        return NextResponse.json({
-          source: "cache",
-          itemName: cachedItem.item_name,
-          officialPrice: cachedItem.official_price,
-        });
-      }
+      // ショップ情報を常に最新にするため、今回はそのまま live_fetch へ流します
     }
 
     // --- STEP 2: Yahoo! APIの呼び出し（15件取得） ---
@@ -49,7 +43,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Yahoo! APIの初期設定が完了していません" }, { status: 500 });
     }
 
-    // 💡 results=15 に増やして複数のショップの情報を取得
     const yahooApiUrl = `https://shopping.yahooapis.jp/ShoppingWebService/V3/itemSearch?appid=${YAHOO_CLIENT_ID}&jan_code=${janCode}&results=15`;
 
     const res = await fetch(yahooApiUrl, {
@@ -59,7 +52,6 @@ export async function POST(request: Request) {
     });
 
     if (!res.ok) {
-      const errorText = await res.text();
       return NextResponse.json({ error: `Yahoo! APIエラー (${res.status})` }, { status: 500 });
     }
 
@@ -69,49 +61,41 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "該当する商品が見つかりませんでした" }, { status: 404 });
     }
 
-    // 基準となるきれいな商品名は1件目から取得
     const rawItemName = yahooData.hits[0].name;
     const cleanedItemName = cleanItemName(rawItemName);
 
-    // --- STEP 3: 優良ストアのデータから「定価」を掘り起こすロジック ---
+    // --- STEP 3: 安い順（価格の昇順）にショップ情報を並び替えて上位3件を抽出 ---
+    const sortedHits = [...yahooData.hits].sort((a, b) => Number(a.price) - Number(b.price));
+
+    const topOffers = sortedHits.slice(0, 3).map((hit: any) => ({
+      storeName: hit.seller?.name || "不明なショップ",
+      price: Number(hit.price),
+      url: hit.url || "#"
+    }));
+
+    // --- STEP 4: 基準価格（定価目安）の決定ロジック ---
     let detectedPrice = 0;
+    const trustedStores = ["joshinweb", "y-kojima", "edion", "amiami", "digitamin", "hal-shop"];
 
-    // 信頼できる大手・正規ストアのリスト（ストアアカウント名）
-    const trustedStores = [
-      "joshinweb",       // 上新電機
-      "y-kojima",        // コジマ
-      "edion",           // エディオン
-      "amiami",          // あみあみ
-      "digitamin",       // でじたみん
-      "hal-shop",        // ハピネット・オンライン
-    ];
-
-    // ヒットした15件の中に、信頼できるストアが出品しているか探す
+    // 15件の中に大手正規店があれば、その定価・販売価格の情報を最優先で採用
     for (const hit of yahooData.hits) {
-      const storeId = hit.seller?.id; // ストアのIDを取得
-
-      // もし優良ストアのリストに一致したら、その価格を採用候補にする
+      const storeId = hit.seller?.id;
       if (storeId && trustedStores.includes(storeId)) {
-        // Yahoo! APIの価格データにメーカー希望小売価格が含まれているか確認
         if (hit.priceLabel?.fixedPrice) {
           detectedPrice = Number(hit.priceLabel.fixedPrice);
-          break; // 確定したのでループを抜ける
+          break;
         }
-        // なければ、その正規店の販売価格そのものを定価として仮採用
         detectedPrice = Number(hit.price);
         break;
       }
     }
 
-    // 万が一、15件の中に優良ストアが1つもなかった場合のセーフティネット
+    // もし大手正規店がいなければ、今回の15件の中の最安値を基準価格とする
     if (detectedPrice === 0) {
-      // ヒットした全ショップの中で「最安値」を定価の目安にする
-      // （転売価格は釣り上がりますが、定価以下〜定価付近で売るまともな店が1店舗でも混ざっていればそれを拾うため）
-      const prices = yahooData.hits.map((hit: any) => Number(hit.price));
-      detectedPrice = Math.min(...prices);
+      detectedPrice = topOffers[0].price;
     }
 
-    // --- STEP 4: DBに保存 ---
+    // --- STEP 5: Supabase DBへの保存 ---
     if (supabase) {
       try {
         await supabase.from("items").insert([
@@ -122,10 +106,12 @@ export async function POST(request: Request) {
       }
     }
 
+    // 画面側へのデータ返却
     return NextResponse.json({
       source: "live_fetch",
       itemName: cleanedItemName,
       officialPrice: detectedPrice,
+      offers: topOffers
     });
 
   } catch (error: any) {
