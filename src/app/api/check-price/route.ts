@@ -11,6 +11,17 @@ const supabase = (supabaseUrl && supabaseAnonKey) ? createClient(supabaseUrl, su
 
 const YAHOO_CLIENT_ID = process.env.YAHOO_CLIENT_ID;
 
+// Offerオブジェクトの型定義（TypeScriptのエラーを防ぐため）
+interface Offer {
+  storeName: string;
+  price: number;
+  shippingFee: number;
+  isConditional: boolean;
+  url: string;
+  storeId: string;
+  fixedPrice: number;
+}
+
 function cleanItemName(name: string): string {
   if (!name) return "";
   let cleaned = name;
@@ -23,7 +34,6 @@ function cleanItemName(name: string): string {
 }
 
 function isNameMatching(baseName: string, targetName: string): boolean {
-  // すべて小文字、半角、スペース・記号排除
   const cleanStr = (str: string) =>
     str.toLowerCase()
       .replace(/[！-～]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xfee0)) // 全角英数を半角へ
@@ -36,7 +46,6 @@ function isNameMatching(baseName: string, targetName: string): boolean {
     return true;
   }
 
-  // 2文字ずつのバイグラムでより厳密にチェック
   const getKeywords = (str: string) => {
     const words = [];
     for (let i = 0; i < str.length - 1; i++) {
@@ -54,7 +63,6 @@ function isNameMatching(baseName: string, targetName: string): boolean {
   });
 
   const matchRatio = matchCount / baseKeywords.length;
-  // 💡 誤認識を強固に弾くため、一致率のボーダーを 50% に引き上げ
   return matchRatio >= 0.5;
 }
 
@@ -72,7 +80,6 @@ export async function POST(request: Request) {
 
     const yahooApiUrl = `https://shopping.yahooapis.jp/ShoppingWebService/V3/itemSearch?appid=${YAHOO_CLIENT_ID}&jan_code=${janCode}&results=20`;
 
-    // 💡 【重要】 cache: "no-store" を追加し、Next.jsの古いキャッシュを強制的に破棄
     const res = await fetch(yahooApiUrl, {
       cache: "no-store",
       headers: {
@@ -90,7 +97,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "該当する商品が見つかりませんでした" }, { status: 404 });
     }
 
-    // 1. まず最も信頼できるストアから「本物の基準名」を決定
     const trustedStores = ["joshinweb", "y-kojima", "edion", "amiami", "digitamin", "hal-shop"];
     let baseItemName = "";
 
@@ -101,7 +107,6 @@ export async function POST(request: Request) {
       }
     }
 
-    // 大手がいなければ1件目を暫定基準にしつつ、あからさまな日用品ストアっぽい名前（ensyuなど）を避けるロジック
     if (!baseItemName) {
       const crystalHit = yahooData.hits.find((h: any) => !h.seller?.id?.includes("ensyu") && !h.name.includes("ケース"));
       baseItemName = crystalHit ? crystalHit.name : yahooData.hits[0].name;
@@ -109,9 +114,7 @@ export async function POST(request: Request) {
 
     const cleanedBaseName = cleanItemName(baseItemName);
 
-    // 2. 💡 基準名と「商品名が不一致なデータ」を完全に排除（ensyu2017などもここで不一致判定され消えます）
     const matchedHits = yahooData.hits.filter((hit: any) => {
-      // ストアIDに特定のノイズ店舗（ensyuなど）が分かっている場合はここで直接ハード弾き
       if (hit.seller?.id === "ensyu2017" || hit.url?.includes("ensyu2017")) {
         return false;
       }
@@ -125,7 +128,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "正しい商品データが確認できませんでした" }, { status: 404 });
     }
 
-    const offers = matchedHits.map((hit: any) => {
+    // 💡 TypeScriptエラー回避のため、配列全体に Offer[] 型を明示
+    const offers: Offer[] = matchedHits.map((hit: any) => {
       const shippingName = hit.shipping?.name || "";
       let shippingFee = 0;
       if (!shippingName.includes("送料無料")) {
@@ -139,11 +143,12 @@ export async function POST(request: Request) {
         shippingFee: shippingFee,
         isConditional: hit.shipping?.name?.includes("条件") || hit.shipping?.code === 1 || hit.shipping?.code === "1",
         url: hit.url || "#",
-        storeId: hit.seller?.id,
+        storeId: hit.seller?.id || "",
         fixedPrice: hit.priceLabel?.fixedPrice ? Number(hit.priceLabel.fixedPrice) : 0
       };
     });
 
+    // 💡 a, b の型が自動的に確定するため、ここでエラーが出なくなります
     const sortedOffers = offers.sort((a, b) => a.price - b.price);
     const topOffers = sortedOffers.slice(0, 3);
 
