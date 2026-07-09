@@ -39,3 +39,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Supabase CLI 関連のローカル設定・一時ファイル
+supabase/.temp/
+supabase/.branch/
+.env.local
