@@ -16,14 +16,14 @@ export default function Home() {
 
     // 二重初期化を防ぐクリーンアップ
     if (scannerRef.current) {
-      scannerRef.current.clear().catch(() => {});
+      scannerRef.current.clear().catch(() => { });
     }
 
     // スキャナーのインスタンス作成
     const scanner = new Html5QrcodeScanner(
       "reader",
-      { 
-        fps: 10, 
+      {
+        fps: 10,
         qrbox: { width: 250, height: 150 },
         rememberLastUsedCamera: true,
       },
@@ -33,16 +33,39 @@ export default function Home() {
     scannerRef.current = scanner;
 
     // スキャン成功時の処理
-    const onScanSuccess = (decodedText: string) => {
+    const onScanSuccess = async (decodedText: string) => {
       setScanResult(decodedText);
       setIsScanning(false);
+
+      // スキャナーを停止
       if (scannerRef.current) {
         scannerRef.current.clear().catch((err) => console.error("Clear error", err));
+      }
+
+      // 作成したAPIを叩く
+      try {
+        const response = await fetch("/api/check-price", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ janCode: decodedText }),
+        });
+        const data = await response.json();
+
+        if (data.error) {
+          setCameraError(data.error);
+        } else {
+          // 💡 ここで取得した「商品名(data.itemName)」や「定価(data.officialPrice)」を
+          // 新しいStateに保存して画面に表示させます（後ほどUIを綺麗にします）
+          console.log("検索結果:", data);
+        }
+      } catch (err) {
+        console.error("API通信エラー:", err);
+        setCameraError("価格情報の取得に失敗しました。");
       }
     };
 
     // スキャン失敗時（毎フレーム呼ばれるのでエラーログは出さない）
-    const onScanFailure = () => {};
+    const onScanFailure = () => { };
 
     // レンダリング開始
     try {
