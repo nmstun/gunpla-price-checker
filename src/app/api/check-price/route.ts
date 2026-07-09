@@ -70,7 +70,8 @@ export async function POST(request: Request) {
   try {
     const { janCode } = await request.json();
 
-    if (!janCode || janCode.length !== 13) {
+    // ─── 修正後（13桁 または 8桁 を許可）───
+    if (!janCode || (janCode.length !== 13 && janCode.length !== 8)) {
       return NextResponse.json({ error: "不正なJANコードです" }, { status: 400 });
     }
 
