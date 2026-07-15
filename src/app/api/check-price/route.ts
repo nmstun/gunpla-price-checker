@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { CheckPriceResult, PriceSource } from '@/types'
 import { getCachedItem, saveItem } from '@/lib/supabase/items'
+import { saveScanHistory } from '@/lib/supabase/scanHistory'
 import { cleanItemName, isNameMatching } from '@/utils/itemName'
 import { fetchYahooHits, pickBaseItemName, isExcludedHit, toOffer, detectOfficialPrice } from '@/utils/yahooShopping'
 import { findOfficialPriceByJanCode } from '@/utils/bandaiHobby'
@@ -17,14 +18,22 @@ function isValidJanCode(janCode: unknown): janCode is string {
 
 export async function POST(request: Request) {
   try {
-    const { janCode } = await request.json()
+    const { janCode, storeName } = await request.json()
 
     if (!isValidJanCode(janCode)) {
       return NextResponse.json({ error: '不正なJANコードです' }, { status: 400 })
     }
+    const store = typeof storeName === 'string' ? storeName : ''
 
     const cached = await getCachedItem(janCode)
     if (cached) {
+      await saveScanHistory({
+        janCode,
+        itemName: cached.itemName,
+        officialPrice: cached.officialPrice,
+        priceSource: cached.priceSource,
+        storeName: store,
+      })
       const result: CheckPriceResult = {
         source: 'cache',
         itemName: cached.itemName,
@@ -77,6 +86,13 @@ export async function POST(request: Request) {
     }
 
     await saveItem(janCode, cleanedBaseName, officialPrice, priceSource)
+    await saveScanHistory({
+      janCode,
+      itemName: cleanedBaseName,
+      officialPrice,
+      priceSource,
+      storeName: store,
+    })
 
     const result: CheckPriceResult = {
       source: 'live_fetch',

@@ -19,3 +19,13 @@ export interface CheckPriceResult {
   priceSource: PriceSource
   offers: Offer[]
 }
+
+export interface ScanHistoryEntry {
+  id: string
+  janCode: string
+  itemName: string
+  officialPrice: number
+  priceSource: PriceSource
+  storeName: string
+  scannedAt: string
+}

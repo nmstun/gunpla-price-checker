@@ -9,14 +9,14 @@ export function useCheckPrice() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const checkPrice = useCallback(async (janCode: string) => {
+  const checkPrice = useCallback(async (janCode: string, storeName: string) => {
     setLoading(true)
     setError(null)
     try {
       const res = await fetch('/api/check-price', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ janCode }),
+        body: JSON.stringify({ janCode, storeName }),
       })
 
       const data = await res.json()

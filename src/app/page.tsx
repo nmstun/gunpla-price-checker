@@ -1,11 +1,26 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import Link from "next/link";
 import { BrowserMultiFormatReader, Result, Exception } from "@zxing/library";
 import { useCheckPrice } from "@/hooks/useCheckPrice";
+import { useFavoriteStores } from "@/hooks/useFavoriteStores";
 
 export default function Home() {
   const { result, loading, error, checkPrice, reset } = useCheckPrice();
+  const { stores, addStore } = useFavoriteStores();
+
+  // 読取り店舗の選択状態
+  const [selectedStore, setSelectedStore] = useState<string | null>(null);
+  const [newStoreName, setNewStoreName] = useState("");
+
+  const handleAddStore = () => {
+    const trimmed = newStoreName.trim();
+    if (!trimmed) return;
+    addStore(trimmed);
+    setSelectedStore(trimmed);
+    setNewStoreName("");
+  };
 
   // カメラ制御用の状態
   const [isScanning, setIsScanning] = useState(false);
@@ -33,7 +48,7 @@ export default function Home() {
               // 読み取り成功時の処理
               setScannedCode(jan);
               setIsScanning(false); // スキャンを一旦停止
-              checkPrice(jan); // 価格チェックAPIを叩く
+              checkPrice(jan, selectedStore ?? ""); // 価格チェックAPIを叩く
             }
           }
           if (err && !(err.name === 'NotFoundException')) {
@@ -58,7 +73,7 @@ export default function Home() {
         codeReaderRef.current.reset();
       }
     };
-  }, [isScanning, checkPrice]);
+  }, [isScanning, checkPrice, selectedStore]);
 
   // スキャンの再試行
   const handleResetScan = () => {
@@ -70,14 +85,61 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4 flex flex-col items-center font-sans">
-      <header className="mb-6 text-center">
+      <header className="mb-6 text-center relative w-full max-w-md">
         <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
           🤖 ガンプラ定価チェッカー
         </h1>
         <p className="text-sm text-gray-500 mt-1">カメラをバーコードにかざして転売価格を見破る</p>
+        <Link
+          href="/history"
+          className="absolute top-0 right-0 text-xs font-bold text-blue-600 hover:text-blue-700 underline"
+        >
+          📋 履歴
+        </Link>
       </header>
 
       <main className="w-full max-w-md bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-6">
+
+        {/* 🏬 読取り店舗の選択 */}
+        <div className="space-y-2">
+          <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+            🏬 読取り店舗
+          </span>
+          <div className="flex flex-wrap gap-2">
+            {stores.map((store) => (
+              <button
+                key={store}
+                onClick={() => setSelectedStore(store)}
+                className={`text-xs font-bold px-3 py-1.5 rounded-full border transition ${
+                  selectedStore === store
+                    ? "bg-blue-600 border-blue-600 text-white"
+                    : "bg-white border-gray-200 text-gray-600 hover:border-blue-300"
+                }`}
+              >
+                {store}
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={newStoreName}
+              onChange={(e) => setNewStoreName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleAddStore()}
+              placeholder="店舗名を入力して追加"
+              className="flex-1 text-xs px-3 py-2 rounded-lg border border-gray-200 focus:outline-none focus:border-blue-400"
+            />
+            <button
+              onClick={handleAddStore}
+              className="text-xs font-bold px-3 py-2 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition"
+            >
+              追加
+            </button>
+          </div>
+          {selectedStore && (
+            <p className="text-[11px] text-blue-600">選択中: {selectedStore}</p>
+          )}
+        </div>
 
         {/* 📷 カメラ・スキャナー領域 */}
         <div className="bg-gray-950 h-56 rounded-xl flex flex-col items-center justify-center text-white text-sm relative overflow-hidden border border-gray-800">
@@ -107,17 +169,20 @@ export default function Home() {
                   <p className="text-xs text-gray-400 uppercase tracking-wider">読み取り完了</p>
                   <p className="text-xl font-mono font-bold text-blue-400 mt-1">{scannedCode}</p>
                 </div>
-              ) : (
+              ) : selectedStore ? (
                 <p className="text-gray-400 text-xs">カメラを起動して商品のバーコード（JAN）をスキャンしてください</p>
+              ) : (
+                <p className="text-amber-400 text-xs">↑ まず読取り店舗を選択してください</p>
               )}
 
               <button
+                disabled={!selectedStore}
                 onClick={() => {
                   reset();
                   setCameraError(null);
                   setIsScanning(true);
                 }}
-                className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-5 py-2.5 rounded-xl shadow-md transition-all active:scale-95"
+                className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:cursor-not-allowed disabled:hover:bg-gray-700 text-white text-xs font-bold px-5 py-2.5 rounded-xl shadow-md transition-all active:scale-95"
               >
                 {scannedCode ? "次の商品をスキャン" : "📷 カメラを起動する"}
               </button>
