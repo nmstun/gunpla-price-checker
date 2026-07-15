@@ -1,33 +1,19 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { BrowserMultiFormatReader, Result } from "@zxing/library";
-
-interface Offer {
-  storeName: string;
-  price: number;
-  shippingFee: number;
-  isConditional: boolean;
-  url: string;
-}
-
-interface ScanResult {
-  source: "cache" | "live_fetch";
-  itemName: string;
-  officialPrice: number;
-  offers?: Offer[];
-}
+import { BrowserMultiFormatReader, Result, Exception } from "@zxing/library";
+import { useCheckPrice } from "@/hooks/useCheckPrice";
 
 export default function Home() {
-  const [result, setResult] = useState<ScanResult | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { result, loading, error, checkPrice, reset } = useCheckPrice();
 
   // カメラ制御用の状態
   const [isScanning, setIsScanning] = useState(false);
   const [scannedCode, setScannedCode] = useState<string | null>(null);
+  const [cameraError, setCameraError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const codeReaderRef = useRef<BrowserMultiFormatReader | null>(null);
+  const displayError = error || cameraError;
 
   // 1. バーコードスキャンの開始・停止制御
   useEffect(() => {
@@ -39,7 +25,7 @@ export default function Home() {
       codeReader.decodeFromVideoDevice(
         null, // nullを指定すると自動的に背面カメラ等の最適なデバイスを選択します
         videoRef.current,
-        (decodeResult: Result | null, err?: any) => {
+        (decodeResult: Result | null, err?: Exception) => {
           if (decodeResult) {
             const jan = decodeResult.getText();
             // JANコードは通常13桁（古いものは8桁）
@@ -47,7 +33,7 @@ export default function Home() {
               // 読み取り成功時の処理
               setScannedCode(jan);
               setIsScanning(false); // スキャンを一旦停止
-              handleCheckPrice(jan); // 価格チェックAPIを叩く
+              checkPrice(jan); // 価格チェックAPIを叩く
             }
           }
           if (err && !(err.name === 'NotFoundException')) {
@@ -56,7 +42,7 @@ export default function Home() {
         }
       ).catch((err) => {
         console.error("カメラ起動失敗:", err);
-        setError("カメラの起動に失敗しました。カメラのアクセス権限を確認してください。");
+        setCameraError("カメラの起動に失敗しました。カメラのアクセス権限を確認してください。");
         setIsScanning(false);
       });
     } else {
@@ -72,39 +58,13 @@ export default function Home() {
         codeReaderRef.current.reset();
       }
     };
-  }, [isScanning]);
-
-  // 2. 価格チェックAPIの呼び出し
-  const handleCheckPrice = async (janCode: string) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/check-price", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ janCode }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || "価格の取得に失敗しました");
-      }
-
-      setResult(data);
-    } catch (err: any) {
-      setError(err.message);
-      setResult(null);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [isScanning, checkPrice]);
 
   // スキャンの再試行
   const handleResetScan = () => {
-    setResult(null);
+    reset();
     setScannedCode(null);
-    setError(null);
+    setCameraError(null);
     setIsScanning(true);
   };
 
@@ -153,8 +113,8 @@ export default function Home() {
 
               <button
                 onClick={() => {
-                  setResult(null);
-                  setError(null);
+                  reset();
+                  setCameraError(null);
                   setIsScanning(true);
                 }}
                 className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-5 py-2.5 rounded-xl shadow-md transition-all active:scale-95"
@@ -174,10 +134,10 @@ export default function Home() {
         )}
 
         {/* ❌ エラー表示＆再試行 */}
-        {error && (
+        {displayError && (
           <div className="space-y-3">
             <div className="p-4 bg-red-50 text-red-700 text-sm rounded-xl border border-red-100 leading-relaxed">
-              ⚠️ {error}
+              ⚠️ {displayError}
             </div>
             <button
               onClick={handleResetScan}
@@ -205,7 +165,7 @@ export default function Home() {
             <div className="p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border border-blue-100 flex items-center justify-between">
               <div>
                 <span className="text-xs text-blue-600 font-medium block">
-                  量販店・公式基準価格（定価目安）
+                  {result.priceSource === "bandai_msrp" ? "メーカー希望小売価格" : "量販店価格の目安（未確認）"}
                 </span>
                 <span className="text-2xl font-black text-blue-900 mt-1 block">
                   ¥{result.officialPrice.toLocaleString()} <span className="text-xs font-normal text-gray-500">(税込)</span>
@@ -214,9 +174,15 @@ export default function Home() {
 
               <div className="text-right">
                 <span className="text-xs text-gray-400 block">情報ソース</span>
-                <span className="inline-block mt-1 text-xs font-bold px-2 py-1 rounded-full bg-green-100 text-green-700">
-                  🌐 照合済み流通データ
-                </span>
+                {result.priceSource === "bandai_msrp" ? (
+                  <span className="inline-block mt-1 text-xs font-bold px-2 py-1 rounded-full bg-green-100 text-green-700">
+                    ✅ バンダイ公式サイト照合済み
+                  </span>
+                ) : (
+                  <span className="inline-block mt-1 text-xs font-bold px-2 py-1 rounded-full bg-amber-100 text-amber-700">
+                    ⚠️ 公式未確認・推定値
+                  </span>
+                )}
               </div>
             </div>
 
