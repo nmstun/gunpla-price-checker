@@ -1,6 +1,8 @@
 const SEARCH_PAGE_URL = 'https://bandai-hobby.net/search/'
 const PRODUCT_LIST_API = 'https://cmsapi-frontend.bandai-hobby.net/site/api/hobby/Product/list'
-const FETCH_TIMEOUT_MS = 8000
+// トークン取得は実測500ms前後だが、商品検索APIは実測で10秒を超えることがあるため長めに取る
+const TOKEN_FETCH_TIMEOUT_MS = 5000
+const PRODUCT_FETCH_TIMEOUT_MS = 15000
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
 
 interface BandaiProduct {
@@ -10,9 +12,9 @@ interface BandaiProduct {
   url: string
 }
 
-async function fetchWithTimeout(url: string, init?: RequestInit): Promise<Response> {
+async function fetchWithTimeout(url: string, timeoutMs: number, init?: RequestInit): Promise<Response> {
   const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
   try {
     return await fetch(url, { ...init, signal: controller.signal })
   } finally {
@@ -26,7 +28,7 @@ async function fetchWithTimeout(url: string, init?: RequestInit): Promise<Respon
 // 呼び出し側は既存の目安価格ロジックにフォールバックする）
 async function fetchSearchToken(keyword: string): Promise<string | null> {
   const url = `${SEARCH_PAGE_URL}?title=${encodeURIComponent(keyword)}&product=on`
-  const res = await fetchWithTimeout(url, {
+  const res = await fetchWithTimeout(url, TOKEN_FETCH_TIMEOUT_MS, {
     headers: { 'User-Agent': USER_AGENT },
     cache: 'no-store',
   })
@@ -51,7 +53,16 @@ async function fetchSearchTokenWithRetry(keyword: string): Promise<string | null
   }
 }
 
-async function searchBandaiHobbyProducts(keyword: string): Promise<BandaiProduct[]> {
+// バンダイ側の検索は単純な部分一致らしく、スペースや"/"（スケール表記の1/144等）を含めると
+// フィルタが無視されて全件が返ってくることが実測で分かった。空白なしの連続文字列にして渡す
+function toBandaiSearchKeyword(name: string): string {
+  return name.replace(/\d+\/\d+/g, '').replace(/[\s/]/g, '')
+}
+
+async function searchBandaiHobbyProducts(rawKeyword: string): Promise<BandaiProduct[]> {
+  const keyword = toBandaiSearchKeyword(rawKeyword)
+  if (!keyword) return []
+
   const token = await fetchSearchTokenWithRetry(keyword)
   if (!token) return []
 
@@ -64,7 +75,7 @@ async function searchBandaiHobbyProducts(keyword: string): Promise<BandaiProduct
     data: JSON.stringify({ title: keyword }),
   })
 
-  const res = await fetchWithTimeout(`${PRODUCT_LIST_API}?${params.toString()}`, {
+  const res = await fetchWithTimeout(`${PRODUCT_LIST_API}?${params.toString()}`, PRODUCT_FETCH_TIMEOUT_MS, {
     headers: { 'User-Agent': USER_AGENT, Referer: 'https://bandai-hobby.net/' },
     cache: 'no-store',
   })
