@@ -3,23 +3,23 @@
 import { useCallback, useSyncExternalStore } from 'react'
 
 const STORAGE_KEY = 'gunpla-price-checker:favorite-stores'
-const DEFAULT_STORES = ['ヨドバシカメラ', 'ジョーシン', 'イエローサブマリン', 'ホビーステーション']
+const EMPTY_STORES: string[] = []
 
 // useSyncExternalStoreはgetSnapshotが呼ばれるたびに同じ参照を返さないと
 // 再レンダーが無限に走ってしまうため、localStorageの生の値が変わっていなければ
 // 前回パースした配列をそのまま返すようにキャッシュする
 let cachedRaw: string | null = null
-let cachedStores: string[] = DEFAULT_STORES
+let cachedStores: string[] = EMPTY_STORES
 
 function readStores(): string[] {
-  if (typeof window === 'undefined') return DEFAULT_STORES
+  if (typeof window === 'undefined') return EMPTY_STORES
 
   const raw = window.localStorage.getItem(STORAGE_KEY)
   if (raw === cachedRaw) return cachedStores
 
   cachedRaw = raw
   if (!raw) {
-    cachedStores = DEFAULT_STORES
+    cachedStores = EMPTY_STORES
     return cachedStores
   }
 
@@ -30,9 +30,9 @@ function readStores(): string[] {
       return cachedStores
     }
   } catch {
-    // 壊れたデータは無視してデフォルトのまま使う
+    // 壊れたデータは無視して空のまま使う
   }
-  cachedStores = DEFAULT_STORES
+  cachedStores = EMPTY_STORES
   return cachedStores
 }
 
@@ -46,7 +46,7 @@ function subscribe(callback: () => void): () => void {
 // 店舗名の一覧をlocalStorageに保存し、使うたびに新しい店舗を自動で追加する
 // （ログイン不要の個人用ツールのため、端末内で完結するシンプルな永続化にしている）
 export function useFavoriteStores() {
-  const stores = useSyncExternalStore(subscribe, readStores, () => DEFAULT_STORES)
+  const stores = useSyncExternalStore(subscribe, readStores, () => EMPTY_STORES)
 
   const addStore = useCallback((name: string) => {
     const trimmed = name.trim()

@@ -105,21 +105,25 @@ export default function Home() {
           <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">
             🏬 読取り店舗
           </span>
-          <div className="flex flex-wrap gap-2">
-            {stores.map((store) => (
-              <button
-                key={store}
-                onClick={() => setSelectedStore(store)}
-                className={`text-xs font-bold px-3 py-1.5 rounded-full border transition ${
-                  selectedStore === store
-                    ? "bg-blue-600 border-blue-600 text-white"
-                    : "bg-white border-gray-200 text-gray-600 hover:border-blue-300"
-                }`}
-              >
-                {store}
-              </button>
-            ))}
-          </div>
+          {stores.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {stores.map((store) => (
+                <button
+                  key={store}
+                  onClick={() => setSelectedStore(store)}
+                  className={`text-xs font-bold px-3 py-1.5 rounded-full border transition ${
+                    selectedStore === store
+                      ? "bg-blue-600 border-blue-600 text-white"
+                      : "bg-white border-gray-200 text-gray-600 hover:border-blue-300"
+                  }`}
+                >
+                  {store}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="text-[11px] text-gray-400">まだ登録された店舗がありません。下から追加してください。</p>
+          )}
           <div className="flex gap-2">
             <input
               type="text"
