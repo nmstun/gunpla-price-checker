@@ -18,6 +18,9 @@ export interface CheckPriceResult {
   officialPrice: number
   priceSource: PriceSource
   offers: Offer[]
+  // 店舗の販売価格を後から入力・編集できるように、記録されたscan_historyのIDを返す
+  // （店舗未選択などで記録されなかった場合はnull）
+  scanHistoryId: string | null
 }
 
 export interface ScanHistoryEntry {
@@ -27,5 +30,6 @@ export interface ScanHistoryEntry {
   officialPrice: number
   priceSource: PriceSource
   storeName: string
+  storePrice: number | null
   scannedAt: string
 }

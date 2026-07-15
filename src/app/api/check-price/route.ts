@@ -27,7 +27,7 @@ export async function POST(request: Request) {
 
     const cached = await getCachedItem(janCode)
     if (cached) {
-      await saveScanHistory({
+      const scanHistoryId = await saveScanHistory({
         janCode,
         itemName: cached.itemName,
         officialPrice: cached.officialPrice,
@@ -40,6 +40,7 @@ export async function POST(request: Request) {
         officialPrice: cached.officialPrice,
         priceSource: cached.priceSource,
         offers: [],
+        scanHistoryId,
       }
       return NextResponse.json(result)
     }
@@ -86,7 +87,7 @@ export async function POST(request: Request) {
     }
 
     await saveItem(janCode, cleanedBaseName, officialPrice, priceSource)
-    await saveScanHistory({
+    const scanHistoryId = await saveScanHistory({
       janCode,
       itemName: cleanedBaseName,
       officialPrice,
@@ -100,6 +101,7 @@ export async function POST(request: Request) {
       officialPrice,
       priceSource,
       offers: topOffers,
+      scanHistoryId,
     }
     return NextResponse.json(result)
   } catch (error) {
