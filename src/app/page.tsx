@@ -44,7 +44,7 @@ function StorePriceInput({ scanHistoryId }: { scanHistoryId: string }) {
               setStatus("idle");
             }}
             placeholder="例: 6800"
-            className="w-full text-base pl-7 pr-3 py-2.5 rounded-lg border border-gray-200 focus:outline-none focus:border-blue-400"
+            className="w-full text-base text-gray-900 pl-7 pr-3 py-2.5 rounded-lg border border-gray-200 focus:outline-none focus:border-blue-400"
           />
         </div>
         <button
@@ -180,11 +180,10 @@ export default function Home() {
               {stores.map((store) => (
                 <span
                   key={store}
-                  className={`flex items-center gap-0.5 pl-3.5 pr-1.5 py-2 rounded-full border text-sm font-bold transition ${
-                    selectedStore === store
-                      ? "bg-blue-600 border-blue-600 text-white"
-                      : "bg-white border-gray-200 text-gray-600"
-                  }`}
+                  className={`flex items-center gap-0.5 pl-3.5 pr-1.5 py-2 rounded-full border text-sm font-bold transition ${selectedStore === store
+                    ? "bg-blue-600 border-blue-600 text-white"
+                    : "bg-white border-gray-200 text-gray-600"
+                    }`}
                 >
                   <button onClick={() => setSelectedStore(store)} className="py-0.5">
                     {store}
@@ -195,9 +194,8 @@ export default function Home() {
                       handleRemoveStore(store);
                     }}
                     aria-label={`${store}を削除`}
-                    className={`w-7 h-7 shrink-0 flex items-center justify-center rounded-full text-sm leading-none ${
-                      selectedStore === store ? "active:bg-blue-700" : "active:bg-gray-200"
-                    }`}
+                    className={`w-7 h-7 shrink-0 flex items-center justify-center rounded-full text-sm leading-none ${selectedStore === store ? "active:bg-blue-700" : "active:bg-gray-200"
+                      }`}
                   >
                     ×
                   </button>
@@ -214,7 +212,7 @@ export default function Home() {
               onChange={(e) => setNewStoreName(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleAddStore()}
               placeholder="店舗名を入力して追加"
-              className="flex-1 min-w-0 text-base px-3 py-2.5 rounded-lg border border-gray-200 focus:outline-none focus:border-blue-400"
+              className="flex-1 min-w-0 text-base text-gray-900 px-3 py-2.5 rounded-lg border border-gray-200 focus:outline-none focus:border-blue-400"
             />
             <button
               onClick={handleAddStore}
@@ -360,8 +358,8 @@ export default function Home() {
                     >
                       <div className="flex items-center gap-2.5 max-w-[65%]">
                         <span className={`text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full ${index === 0 ? "bg-amber-100 text-amber-700" :
-                            index === 1 ? "bg-slate-200 text-slate-700" :
-                              "bg-orange-100 text-orange-700"
+                          index === 1 ? "bg-slate-200 text-slate-700" :
+                            "bg-orange-100 text-orange-700"
                           }`}>
                           {index + 1}
                         </span>

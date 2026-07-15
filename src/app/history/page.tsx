@@ -74,7 +74,7 @@ function HistoryEntryRow({
                 setStatus("idle");
               }}
               placeholder="例: 6800"
-              className="w-full text-base pl-7 pr-3 py-2 rounded-lg border border-gray-200 focus:outline-none focus:border-blue-400"
+              className="w-full text-base text-gray-900 pl-7 pr-3 py-2 rounded-lg border border-gray-200 focus:outline-none focus:border-blue-400"
             />
           </div>
           <button
@@ -149,11 +149,10 @@ export default function HistoryPage() {
               <button
                 key={store}
                 onClick={() => setSelectedStore(store)}
-                className={`text-sm font-bold px-3.5 py-2 rounded-full border transition ${
-                  selectedStore === store
+                className={`text-sm font-bold px-3.5 py-2 rounded-full border transition ${selectedStore === store
                     ? "bg-blue-600 border-blue-600 text-white"
                     : "bg-white border-gray-200 text-gray-600 active:border-blue-300"
-                }`}
+                  }`}
               >
                 {store}
               </button>
