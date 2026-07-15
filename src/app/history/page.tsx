@@ -27,17 +27,27 @@ export default function HistoryPage() {
   }, [entries, selectedStore]);
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4 flex flex-col items-center font-sans">
-      <header className="mb-6 text-center relative w-full max-w-md">
-        <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
-          📋 スキャン履歴
-        </h1>
-        <p className="text-sm text-gray-500 mt-1">店舗ごとにスキャンした商品を振り返る</p>
+    <div
+      className="min-h-screen bg-gray-50 flex flex-col items-center font-sans"
+      style={{
+        paddingTop: "max(2rem, env(safe-area-inset-top))",
+        paddingBottom: "max(2rem, env(safe-area-inset-bottom))",
+        paddingLeft: "max(1rem, env(safe-area-inset-left))",
+        paddingRight: "max(1rem, env(safe-area-inset-right))",
+      }}
+    >
+      <header className="mb-6 w-full max-w-md flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
+            スキャン履歴
+          </h1>
+          <p className="text-sm text-gray-500 mt-1">店舗ごとにスキャンした商品を振り返る</p>
+        </div>
         <Link
           href="/"
-          className="absolute top-0 right-0 text-xs font-bold text-blue-600 hover:text-blue-700 underline"
+          className="shrink-0 text-sm font-bold text-blue-600 hover:text-blue-700 px-3 py-2 -mr-3 rounded-lg active:bg-blue-50"
         >
-          📷 スキャンへ戻る
+          スキャンへ戻る
         </Link>
       </header>
 
@@ -48,10 +58,10 @@ export default function HistoryPage() {
               <button
                 key={store}
                 onClick={() => setSelectedStore(store)}
-                className={`text-xs font-bold px-3 py-1.5 rounded-full border transition ${
+                className={`text-sm font-bold px-3.5 py-2 rounded-full border transition ${
                   selectedStore === store
                     ? "bg-blue-600 border-blue-600 text-white"
-                    : "bg-white border-gray-200 text-gray-600 hover:border-blue-300"
+                    : "bg-white border-gray-200 text-gray-600 active:border-blue-300"
                 }`}
               >
                 {store}
@@ -81,7 +91,7 @@ export default function HistoryPage() {
                     {new Date(entry.scannedAt).toLocaleString("ja-JP")}
                   </span>
                   <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
-                    🏬 {entry.storeName}
+                    {entry.storeName}
                   </span>
                 </div>
                 <p className="text-sm font-bold text-gray-800 leading-snug">{entry.itemName}</p>
@@ -91,11 +101,11 @@ export default function HistoryPage() {
                   </span>
                   {entry.priceSource === "bandai_msrp" ? (
                     <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-700">
-                      ✅ 公式照合済み
+                      公式照合済み
                     </span>
                   ) : (
                     <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
-                      ⚠️ 推定値
+                      推定値
                     </span>
                   )}
                 </div>

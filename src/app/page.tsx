@@ -89,47 +89,59 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4 flex flex-col items-center font-sans">
-      <header className="mb-6 text-center relative w-full max-w-md">
-        <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
-          🤖 ガンプラ定価チェッカー
-        </h1>
-        <p className="text-sm text-gray-500 mt-1">カメラをバーコードにかざして転売価格を見破る</p>
+    <div
+      className="min-h-screen bg-gray-50 flex flex-col items-center font-sans"
+      style={{
+        paddingTop: "max(2rem, env(safe-area-inset-top))",
+        paddingBottom: "max(2rem, env(safe-area-inset-bottom))",
+        paddingLeft: "max(1rem, env(safe-area-inset-left))",
+        paddingRight: "max(1rem, env(safe-area-inset-right))",
+      }}
+    >
+      <header className="mb-6 w-full max-w-md flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
+            ガンプラ定価チェッカー
+          </h1>
+          <p className="text-sm text-gray-500 mt-1">カメラをバーコードにかざして転売価格を見破る</p>
+        </div>
         <Link
           href="/history"
-          className="absolute top-0 right-0 text-xs font-bold text-blue-600 hover:text-blue-700 underline"
+          className="shrink-0 text-sm font-bold text-blue-600 hover:text-blue-700 px-3 py-2 -mr-3 rounded-lg active:bg-blue-50"
         >
-          📋 履歴
+          履歴
         </Link>
       </header>
 
       <main className="w-full max-w-md bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-6">
 
-        {/* 🏬 読取り店舗の選択 */}
+        {/* 読取り店舗の選択 */}
         <div className="space-y-2">
           <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">
-            🏬 読取り店舗
+            読取り店舗
           </span>
           {stores.length > 0 ? (
             <div className="flex flex-wrap gap-2">
               {stores.map((store) => (
                 <span
                   key={store}
-                  className={`flex items-center gap-1 pl-3 pr-1.5 py-1 rounded-full border text-xs font-bold transition ${
+                  className={`flex items-center gap-0.5 pl-3.5 pr-1.5 py-2 rounded-full border text-sm font-bold transition ${
                     selectedStore === store
                       ? "bg-blue-600 border-blue-600 text-white"
                       : "bg-white border-gray-200 text-gray-600"
                   }`}
                 >
-                  <button onClick={() => setSelectedStore(store)}>{store}</button>
+                  <button onClick={() => setSelectedStore(store)} className="py-0.5">
+                    {store}
+                  </button>
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       handleRemoveStore(store);
                     }}
                     aria-label={`${store}を削除`}
-                    className={`w-4 h-4 flex items-center justify-center rounded-full text-[10px] leading-none ${
-                      selectedStore === store ? "hover:bg-blue-700" : "hover:bg-gray-200"
+                    className={`w-7 h-7 shrink-0 flex items-center justify-center rounded-full text-sm leading-none ${
+                      selectedStore === store ? "active:bg-blue-700" : "active:bg-gray-200"
                     }`}
                   >
                     ×
@@ -147,11 +159,11 @@ export default function Home() {
               onChange={(e) => setNewStoreName(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleAddStore()}
               placeholder="店舗名を入力して追加"
-              className="flex-1 text-xs px-3 py-2 rounded-lg border border-gray-200 focus:outline-none focus:border-blue-400"
+              className="flex-1 min-w-0 text-base px-3 py-2.5 rounded-lg border border-gray-200 focus:outline-none focus:border-blue-400"
             />
             <button
               onClick={handleAddStore}
-              className="text-xs font-bold px-3 py-2 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition"
+              className="shrink-0 text-sm font-bold px-4 py-2.5 rounded-lg bg-gray-100 text-gray-600 active:bg-gray-200 transition"
             >
               追加
             </button>
@@ -161,7 +173,7 @@ export default function Home() {
           )}
         </div>
 
-        {/* 📷 カメラ・スキャナー領域 */}
+        {/* カメラ・スキャナー領域 */}
         <div className="bg-gray-950 h-56 rounded-xl flex flex-col items-center justify-center text-white text-sm relative overflow-hidden border border-gray-800">
           {isScanning ? (
             <>
@@ -192,7 +204,7 @@ export default function Home() {
               ) : selectedStore ? (
                 <p className="text-gray-400 text-xs">カメラを起動して商品のバーコード（JAN）をスキャンしてください</p>
               ) : (
-                <p className="text-amber-400 text-xs">↑ まず読取り店舗を選択してください</p>
+                <p className="text-amber-400 text-xs">まず読取り店舗を選択してください</p>
               )}
 
               <button
@@ -202,38 +214,38 @@ export default function Home() {
                   setCameraError(null);
                   setIsScanning(true);
                 }}
-                className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:cursor-not-allowed disabled:hover:bg-gray-700 text-white text-xs font-bold px-5 py-2.5 rounded-xl shadow-md transition-all active:scale-95"
+                className="bg-blue-600 active:bg-blue-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white text-sm font-bold px-6 py-3 rounded-xl shadow-md transition-all active:scale-95"
               >
-                {scannedCode ? "次の商品をスキャン" : "📷 カメラを起動する"}
+                {scannedCode ? "次の商品をスキャン" : "カメラを起動する"}
               </button>
             </div>
           )}
         </div>
 
-        {/* ⏳ ローディング */}
+        {/* ローディング */}
         {loading && (
           <div className="text-center py-4 text-gray-500 text-sm animate-pulse flex flex-col items-center gap-2">
             <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-            <span>🔍 正しい商品名と最安値を照合中...</span>
+            <span>正しい商品名と最安値を照合中...</span>
           </div>
         )}
 
-        {/* ❌ エラー表示＆再試行 */}
+        {/* エラー表示＆再試行 */}
         {displayError && (
           <div className="space-y-3">
             <div className="p-4 bg-red-50 text-red-700 text-sm rounded-xl border border-red-100 leading-relaxed">
-              ⚠️ {displayError}
+              {displayError}
             </div>
             <button
               onClick={handleResetScan}
-              className="w-full bg-gray-800 hover:bg-gray-900 text-white text-xs font-bold py-2.5 rounded-xl transition"
+              className="w-full bg-gray-800 active:bg-gray-900 text-white text-sm font-bold py-3 rounded-xl transition"
             >
               もう一度スキャンする
             </button>
           </div>
         )}
 
-        {/* 🎉 結果表示 */}
+        {/* 結果表示 */}
         {result && (
           <div className="space-y-5 animate-fadeIn">
             {/* 商品名 */}
@@ -261,11 +273,11 @@ export default function Home() {
                 <span className="text-xs text-gray-400 block">情報ソース</span>
                 {result.priceSource === "bandai_msrp" ? (
                   <span className="inline-block mt-1 text-xs font-bold px-2 py-1 rounded-full bg-green-100 text-green-700">
-                    ✅ バンダイ公式サイト照合済み
+                    バンダイ公式サイト照合済み
                   </span>
                 ) : (
                   <span className="inline-block mt-1 text-xs font-bold px-2 py-1 rounded-full bg-amber-100 text-amber-700">
-                    ⚠️ 公式未確認・推定値
+                    公式未確認・推定値
                   </span>
                 )}
               </div>
@@ -275,7 +287,7 @@ export default function Home() {
             {result.offers && result.offers.length > 0 && (
               <div className="space-y-2.5">
                 <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">
-                  🛒 同一商品ショップ（本体価格順）
+                  同一商品ショップ（本体価格順）
                 </h3>
                 <div className="divide-y divide-gray-100 border border-gray-100 rounded-xl overflow-hidden bg-gray-50">
                   {result.offers.map((offer, index) => (
@@ -284,7 +296,7 @@ export default function Home() {
                       href={offer.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center justify-between p-3.5 bg-white hover:bg-gray-50/80 transition-colors group"
+                      className="flex items-center justify-between p-3.5 bg-white active:bg-gray-50 transition-colors group"
                     >
                       <div className="flex items-center gap-2.5 max-w-[65%]">
                         <span className={`text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full ${index === 0 ? "bg-amber-100 text-amber-700" :
@@ -294,7 +306,7 @@ export default function Home() {
                           {index + 1}
                         </span>
                         <div className="truncate">
-                          <span className="text-sm font-bold text-gray-700 block truncate group-hover:text-blue-600 transition-colors">
+                          <span className="text-sm font-bold text-gray-700 block truncate">
                             {offer.storeName}
                           </span>
                           <span className="text-[11px] text-gray-400 block mt-0.5">
@@ -310,12 +322,12 @@ export default function Home() {
                       <div className="flex items-center gap-1.5">
                         <div className="text-right">
                           <span className="text-xs text-gray-400 block font-normal">商品価格</span>
-                          <span className="text-lg font-black text-gray-900 group-hover:text-blue-700 transition-colors">
+                          <span className="text-lg font-black text-gray-900">
                             ¥{offer.price.toLocaleString()}
                           </span>
                         </div>
-                        <span className="text-xs text-gray-300 group-hover:text-blue-500 group-hover:translate-x-0.5 transition-all self-end mb-1">
-                          ➔
+                        <span className="text-xs text-gray-300">
+                          ›
                         </span>
                       </div>
                     </a>
@@ -327,13 +339,13 @@ export default function Home() {
             {/* 再スキャン用のボタンを下に配置 */}
             <button
               onClick={handleResetScan}
-              className="w-full border-2 border-dashed border-gray-300 hover:border-blue-500 hover:bg-blue-50/30 text-gray-600 hover:text-blue-600 font-bold py-3 rounded-xl transition text-xs flex items-center justify-center gap-1.5"
+              className="w-full border-2 border-dashed border-gray-300 active:border-blue-500 active:bg-blue-50/30 text-gray-600 font-bold py-3 rounded-xl transition text-sm"
             >
-              📷 続けて別な商品をスキャンする
+              続けて別な商品をスキャンする
             </button>
 
             <div className="text-xs text-gray-500 text-center bg-gray-100 p-3 rounded-lg border border-gray-200 leading-relaxed">
-              💡 <b>名称安全フィルター作動中:</b> JANコードが一致していても、登録名が本来の商品と乖離している怪しい出品は自動的に非表示にしています。
+              <b>名称安全フィルター作動中:</b> JANコードが一致していても、登録名が本来の商品と乖離している怪しい出品は自動的に非表示にしています。
             </div>
           </div>
         )}

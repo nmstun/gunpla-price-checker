@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -15,6 +15,14 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "ガンプラ定価チェッカー",
   description: "バーコードをスキャンして実売価格を照合し、転売価格を見破るツール",
+};
+
+// ホーム画面に追加してフルスクリーン起動した場合にノッチ・ホームバーと
+// コンテンツが重ならないよう、safe-area-insetを使えるようにする
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
