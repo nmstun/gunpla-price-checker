@@ -57,5 +57,12 @@ export function useFavoriteStores() {
     listeners.forEach((listener) => listener())
   }, [])
 
-  return { stores, addStore }
+  const removeStore = useCallback((name: string) => {
+    const current = readStores()
+    if (!current.includes(name)) return
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(current.filter((s) => s !== name)))
+    listeners.forEach((listener) => listener())
+  }, [])
+
+  return { stores, addStore, removeStore }
 }

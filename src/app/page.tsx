@@ -8,7 +8,7 @@ import { useFavoriteStores } from "@/hooks/useFavoriteStores";
 
 export default function Home() {
   const { result, loading, error, checkPrice, reset } = useCheckPrice();
-  const { stores, addStore } = useFavoriteStores();
+  const { stores, addStore, removeStore } = useFavoriteStores();
 
   // 読取り店舗の選択状態
   const [selectedStore, setSelectedStore] = useState<string | null>(null);
@@ -20,6 +20,11 @@ export default function Home() {
     addStore(trimmed);
     setSelectedStore(trimmed);
     setNewStoreName("");
+  };
+
+  const handleRemoveStore = (store: string) => {
+    removeStore(store);
+    if (selectedStore === store) setSelectedStore(null);
   };
 
   // カメラ制御用の状態
@@ -108,17 +113,28 @@ export default function Home() {
           {stores.length > 0 ? (
             <div className="flex flex-wrap gap-2">
               {stores.map((store) => (
-                <button
+                <span
                   key={store}
-                  onClick={() => setSelectedStore(store)}
-                  className={`text-xs font-bold px-3 py-1.5 rounded-full border transition ${
+                  className={`flex items-center gap-1 pl-3 pr-1.5 py-1 rounded-full border text-xs font-bold transition ${
                     selectedStore === store
                       ? "bg-blue-600 border-blue-600 text-white"
-                      : "bg-white border-gray-200 text-gray-600 hover:border-blue-300"
+                      : "bg-white border-gray-200 text-gray-600"
                   }`}
                 >
-                  {store}
-                </button>
+                  <button onClick={() => setSelectedStore(store)}>{store}</button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleRemoveStore(store);
+                    }}
+                    aria-label={`${store}を削除`}
+                    className={`w-4 h-4 flex items-center justify-center rounded-full text-[10px] leading-none ${
+                      selectedStore === store ? "hover:bg-blue-700" : "hover:bg-gray-200"
+                    }`}
+                  >
+                    ×
+                  </button>
+                </span>
               ))}
             </div>
           ) : (
