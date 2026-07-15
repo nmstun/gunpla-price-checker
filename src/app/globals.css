@@ -12,12 +12,8 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+/* このアプリはライト固定デザインのため、ダークモード時の自動配色切り替えは行わない
+   （色指定を省略した要素が端末のダークモード設定に応じて見えなくなる事故を防ぐ） */
 
 body {
   background: var(--background);
