@@ -189,9 +189,18 @@ function normalizeForExactMatch(text: string): string {
     .replace(/[\s\-_/★☆■◆【】()[\]（）]/g, '')
 }
 
-function findMatch(products: BandaiProduct[], janCode: string, canonicalName: string): number | null {
+// JAN完全一致を最優先。見つからない場合の商品名フォールバックは、
+// 説明書サイトで確認できた正式名称（canonicalName）がある場合のみ行う。
+// Yahoo!出品者由来の商品名は「迷彩仕様」等のバリエーション表記が欠落して
+// いることがあり、それを基準にすると別バリエーション（価格違い）の
+// 商品名とたまたま完全一致して誤った価格を採用してしまうため
+// （実例: プレバン限定「ジェガンＤ型（迷彩仕様）¥2,420」のYahoo名から
+// 「迷彩仕様」が欠け、通常版「ジェガンＤ型 ¥1,980」に誤マッチした）
+function findMatch(products: BandaiProduct[], janCode: string, canonicalName: string | null): number | null {
   const janMatched = products.find((p) => janCodeMatches(p.janCode, janCode))
   if (janMatched) return janMatched.price
+
+  if (canonicalName === null) return null
 
   const target = normalizeForExactMatch(canonicalName)
   const nameMatched = products.filter((p) => normalizeForExactMatch(p.title) === target)
@@ -210,9 +219,11 @@ export interface BandaiPriceLookupResult {
 // まず説明書サイトでJANコードから正式な商品名を引けた場合はそちらを優先して使い
 // （Yahoo!の出品者由来の商品名よりノイズが無く正確なため）、検索キーワードは
 // 型式番号・バリエーション接尾辞を順に削りながら広げて試す。
-// JAN完全一致が見つからない場合は商品名の完全一致（表記ゆれ吸収後）にフォールバックするが、
-// 一意に一件へ絞れないとき（カラバリ・Ver.違い等、価格が異なる別商品の可能性があるとき）は
-// 採用せずnullを返す
+// JAN完全一致が見つからない場合、正式名称（canonicalName）が取れているときに限り
+// 商品名の完全一致（表記ゆれ吸収後）にフォールバックするが、一意に一件へ絞れない
+// とき（カラバリ・Ver.違い等、価格が異なる別商品の可能性があるとき）は採用せずnullを返す。
+// 正式名称が取れていない場合（＝説明書サイトでJANを確認できないプレバン限定品等）は、
+// 信頼できない検索キーワードでの名称一致は誤採用の元なので行わず、JAN一致のみに絞る
 export async function findOfficialPriceByJanCode(keyword: string, janCode: string): Promise<BandaiPriceLookupResult> {
   const canonicalName = await resolveCanonicalNameByJanCode(janCode)
   const nameForSearch = canonicalName ?? keyword
@@ -233,7 +244,7 @@ export async function findOfficialPriceByJanCode(keyword: string, janCode: strin
   for (const tier of keywordTiers) {
     const products = await runBandaiSearch(tier)
     if (products.length === 0) continue
-    const price = findMatch(products, janCode, nameForSearch)
+    const price = findMatch(products, janCode, canonicalName)
     if (price !== null) return { officialPrice: price, canonicalName }
   }
 
