@@ -54,9 +54,14 @@ async function fetchSearchTokenWithRetry(keyword: string): Promise<string | null
 }
 
 // バンダイ側の検索は単純な部分一致らしく、スペースや"/"（スケール表記の1/144等）を含めると
-// フィルタが無視されて全件が返ってくることが実測で分かった。空白なしの連続文字列にして渡す
+// フィルタが無視されて全件が返ってくることが実測で分かった。空白なしの連続文字列にして渡す。
+// さらに、キーワードの先頭が"HG"等のグレード表記だと（おそらくブランドコードとして誤解釈され）
+// 404が返るようになったことも実測で確認した。グレード表記は検索精度にも不要なので先頭から除去する
+const GRADE_PREFIX_PATTERN = /^(HG|RG|MG|PG|SD|EG|FM)/i
+
 function toBandaiSearchKeyword(name: string): string {
-  return name.replace(/\d+\/\d+/g, '').replace(/[\s/]/g, '')
+  const cleaned = name.replace(/\d+\/\d+/g, '').replace(/[\s/]/g, '')
+  return cleaned.replace(GRADE_PREFIX_PATTERN, '')
 }
 
 async function searchBandaiHobbyProducts(rawKeyword: string): Promise<BandaiProduct[]> {
