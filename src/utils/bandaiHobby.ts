@@ -189,6 +189,58 @@ function normalizeForExactMatch(text: string): string {
     .replace(/[\s\-_/★☆■◆【】()[\]（）]/g, '')
 }
 
+// 単独で型式番号（"RGM-89De"等）になっているトークンか判定する。
+// Yahoo!名にはあるがバンダイ正式名では「（エコーズ仕様）」のような別表記に
+// なっていて不一致の元になるため、緩め照合のトークンからは除外する
+function isModelCodeToken(token: string): boolean {
+  return /^[A-Za-z]{1,4}-[A-Za-z0-9]+$/.test(token)
+}
+
+// 商品名を照合用の「内容トークン」に分解する。スペース区切りの各語のうち、
+// 型式番号トークンだけを除外し、グレード（HGUC等）・スケール（1/144）・
+// 日本語の要素は残す（これらは候補の絞り込みに有効なため）
+function extractContentTokens(name: string): string[] {
+  return name
+    .split(/\s+/)
+    .map((t) => t.trim())
+    .filter((t) => t.length > 0 && !isModelCodeToken(t))
+}
+
+// 緩め照合フォールバック。JAN一致・商品名完全一致のいずれも取れなかったときの最終手段。
+// プレバン限定品の再発番などで、スキャンした新JANがバンダイ側のどの参照可能ソース
+// （説明書サイト・検索索引・商品ページ）にも登録されておらず、かつYahoo!名も
+// バンダイ正式名と命名規則が異なる（例:"RGM-89De ジェガン コンロイ機" vs
+// "ジェガン（エコーズ仕様）コンロイ機"）ケースを、安全な範囲で救済する。
+//
+// 手順: 最も特徴的な日本語トークンで検索し、「全内容トークンを含む商品」を候補とする。
+// 候補の価格が1種類に定まるときだけ採用する（＝実質一意に特定できるときのみ）。
+// これにより「コンロイ機」のような一意な語を持つ商品は拾える一方、「ジェガンD型」の
+// ように同名バリエーションが価格違いで複数ある曖昧な商品は採用しない
+async function findByLooseNameMatch(nameForSearch: string): Promise<number | null> {
+  const tokens = extractContentTokens(nameForSearch)
+  const normalizedTokens = tokens.map(normalizeForExactMatch).filter((t) => t.length > 0)
+  if (normalizedTokens.length === 0) return null
+
+  // 検索は最も特徴的（＝長い、かつ日本語を含む）トークン1語で行う。
+  // トークンを連結すると、間に「（エコーズ仕様）」等が挟まる正式名と部分一致せず0件になるため
+  const searchToken = tokens
+    .filter((t) => /[ぁ-んァ-ヶ一-龠]/.test(t))
+    .sort((a, b) => b.length - a.length)[0]
+  if (!searchToken) return null
+
+  const products = await runBandaiSearch(toHalfWidthAlnum(searchToken))
+  if (products.length === 0) return null
+
+  const candidates = products.filter((p) => {
+    const title = normalizeForExactMatch(p.title)
+    return normalizedTokens.every((t) => title.includes(t))
+  })
+  if (candidates.length === 0) return null
+
+  const distinctPrices = new Set(candidates.map((c) => c.price))
+  return distinctPrices.size === 1 ? candidates[0].price : null
+}
+
 // JAN完全一致を最優先。見つからない場合の商品名フォールバックは、
 // 説明書サイトで確認できた正式名称（canonicalName）がある場合のみ行う。
 // Yahoo!出品者由来の商品名は「迷彩仕様」等のバリエーション表記が欠落して
@@ -219,11 +271,12 @@ export interface BandaiPriceLookupResult {
 // まず説明書サイトでJANコードから正式な商品名を引けた場合はそちらを優先して使い
 // （Yahoo!の出品者由来の商品名よりノイズが無く正確なため）、検索キーワードは
 // 型式番号・バリエーション接尾辞を順に削りながら広げて試す。
-// JAN完全一致が見つからない場合、正式名称（canonicalName）が取れているときに限り
-// 商品名の完全一致（表記ゆれ吸収後）にフォールバックするが、一意に一件へ絞れない
-// とき（カラバリ・Ver.違い等、価格が異なる別商品の可能性があるとき）は採用せずnullを返す。
-// 正式名称が取れていない場合（＝説明書サイトでJANを確認できないプレバン限定品等）は、
-// 信頼できない検索キーワードでの名称一致は誤採用の元なので行わず、JAN一致のみに絞る
+// 照合は次の優先順で行う:
+// 1) JAN完全一致 … 最も確実
+// 2) 商品名の完全一致 … 正式名称（canonicalName）が取れているときのみ。一意に絞れないときは不採用
+// 3) 内容トークンでの緩め照合（findByLooseNameMatch） … 上記いずれも取れないときの最終手段。
+//    プレバン再発番等で新JANがバンダイ側に無く、Yahoo!名も命名規則が異なるケースを、
+//    価格が一意に定まる場合に限り救済する（曖昧な商品は不採用のまま）
 export async function findOfficialPriceByJanCode(keyword: string, janCode: string): Promise<BandaiPriceLookupResult> {
   const canonicalName = await resolveCanonicalNameByJanCode(janCode)
   const nameForSearch = canonicalName ?? keyword
@@ -247,6 +300,11 @@ export async function findOfficialPriceByJanCode(keyword: string, janCode: strin
     const price = findMatch(products, janCode, canonicalName)
     if (price !== null) return { officialPrice: price, canonicalName }
   }
+
+  // 最終手段: JAN一致・商品名完全一致で取れなかった場合、内容トークンでの緩め照合を試みる
+  // （新JANがバンダイ側に無いプレバン再発番品などを、一意に特定できる場合に限り救済する）
+  const loosePrice = await findByLooseNameMatch(nameForSearch)
+  if (loosePrice !== null) return { officialPrice: loosePrice, canonicalName }
 
   return { officialPrice: null, canonicalName }
 }
