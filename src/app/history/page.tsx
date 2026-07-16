@@ -8,6 +8,50 @@ import { ScanHistoryEntry } from "@/types";
 
 const DELETE_WIDTH = 88;
 
+// 定価・店舗価格の両方が分かっている場合は差額（店舗価格 - 定価）も添える。
+// プラスなら定価より高い＝プレ値、マイナスなら定価より安い、という色分け
+function PriceSummary({
+  officialPrice,
+  storePrice,
+}: {
+  officialPrice: number | null;
+  storePrice: number | null;
+}) {
+  if (officialPrice === null && storePrice === null) {
+    return <span className="text-xs text-gray-400">定価未確認</span>;
+  }
+
+  if (officialPrice !== null && storePrice !== null) {
+    const diff = storePrice - officialPrice;
+    const diffColor = diff > 0 ? "text-red-600" : diff < 0 ? "text-green-600" : "text-gray-400";
+    const diffLabel =
+      diff > 0 ? `+¥${diff.toLocaleString()}` : diff < 0 ? `-¥${Math.abs(diff).toLocaleString()}` : "±0";
+    return (
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+        <span className="text-sm text-gray-900">定価 ¥{officialPrice.toLocaleString()}</span>
+        <span className="text-sm text-gray-900">店舗 ¥{storePrice.toLocaleString()}</span>
+        <span className={`text-xs font-medium ${diffColor}`}>{diffLabel}</span>
+      </div>
+    );
+  }
+
+  if (officialPrice !== null) {
+    return (
+      <div className="flex items-center justify-between">
+        <span className="text-sm text-gray-900">¥{officialPrice.toLocaleString()}</span>
+        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">公式</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-sm text-gray-900">¥{storePrice!.toLocaleString()}</span>
+      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-gray-200 text-gray-600">店舗価格</span>
+    </div>
+  );
+}
+
 function SwipeableHistoryRow({
   entry,
   onDeleted,
@@ -107,28 +151,8 @@ function SwipeableHistoryRow({
           <span className="text-gray-300 shrink-0">›</span>
         </div>
         <p className="text-sm font-bold text-gray-800 leading-snug mt-1">{entry.itemName}</p>
-        <div className="flex items-center justify-between mt-1.5">
-          {entry.officialPrice !== null ? (
-            <>
-              <span className="text-base font-black text-gray-900">
-                ¥{entry.officialPrice.toLocaleString()}
-              </span>
-              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">
-                公式
-              </span>
-            </>
-          ) : entry.storePrice !== null ? (
-            <>
-              <span className="text-base font-black text-gray-900">
-                ¥{entry.storePrice.toLocaleString()}
-              </span>
-              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-gray-200 text-gray-600">
-                店舗価格
-              </span>
-            </>
-          ) : (
-            <span className="text-xs text-gray-400">定価未確認</span>
-          )}
+        <div className="mt-1.5">
+          <PriceSummary officialPrice={entry.officialPrice} storePrice={entry.storePrice} />
         </div>
       </div>
     </div>

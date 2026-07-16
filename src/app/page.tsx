@@ -318,7 +318,7 @@ export default function Home() {
                 <div className="min-w-0">
                   <span className="text-xs text-blue-600 font-medium block">メーカー希望小売価格</span>
                   {result.officialPrice !== null ? (
-                    <span className="text-2xl font-black text-blue-900 mt-1 block">
+                    <span className="text-2xl font-normal text-blue-900 mt-1 block">
                       ¥{result.officialPrice.toLocaleString()}
                       <span className="text-xs font-normal text-gray-500"> (税込)</span>
                     </span>
@@ -341,7 +341,7 @@ export default function Home() {
               <div className="p-4 bg-white flex items-center justify-between gap-2">
                 <span className="text-xs text-gray-500 font-medium">Yahoo!ショッピング最安値</span>
                 {result.offers.length > 0 ? (
-                  <span className="text-lg font-black text-gray-900">
+                  <span className="text-lg font-normal text-gray-900">
                     ¥{result.offers[0].price.toLocaleString()}
                   </span>
                 ) : (
@@ -394,7 +394,7 @@ export default function Home() {
                       <div className="flex items-center gap-1.5">
                         <div className="text-right">
                           <span className="text-xs text-gray-400 block font-normal">商品価格</span>
-                          <span className="text-lg font-black text-gray-900">
+                          <span className="text-lg font-normal text-gray-900">
                             ¥{offer.price.toLocaleString()}
                           </span>
                         </div>

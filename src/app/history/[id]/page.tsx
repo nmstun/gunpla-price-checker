@@ -174,7 +174,7 @@ export default function HistoryDetailPage() {
                 <div className="min-w-0">
                   <span className="text-xs text-blue-600 font-medium block">メーカー希望小売価格</span>
                   {entry.officialPrice !== null ? (
-                    <span className="text-2xl font-black text-blue-900 mt-1 block">
+                    <span className="text-2xl font-normal text-blue-900 mt-1 block">
                       ¥{entry.officialPrice.toLocaleString()}
                       <span className="text-xs font-normal text-gray-500"> (税込)</span>
                     </span>
@@ -202,7 +202,7 @@ export default function HistoryDetailPage() {
                     取得中...
                   </span>
                 ) : lowestMarketPrice !== null ? (
-                  <span className="text-2xl font-black text-gray-900 mt-1 block">
+                  <span className="text-2xl font-normal text-gray-900 mt-1 block">
                     ¥{lowestMarketPrice.toLocaleString()}
                   </span>
                 ) : (
@@ -218,7 +218,7 @@ export default function HistoryDetailPage() {
                     <span className="text-xs text-gray-500 font-medium block">この店舗での価格（任意）</span>
                     {!isEditingStorePrice && (
                       entry.storePrice !== null ? (
-                        <span className="text-2xl font-black text-gray-900 mt-1 block">
+                        <span className="text-2xl font-normal text-gray-900 mt-1 block">
                           ¥{entry.storePrice.toLocaleString()}
                         </span>
                       ) : (
@@ -253,7 +253,7 @@ export default function HistoryDetailPage() {
                             setSaveStatus("idle");
                           }}
                           placeholder="例: 6800"
-                          className="w-full text-2xl font-black text-gray-900 pl-8 pr-3 py-1.5 rounded-lg border border-gray-200 bg-white focus:outline-none focus:border-blue-400"
+                          className="w-full text-2xl font-normal text-gray-900 pl-8 pr-3 py-1.5 rounded-lg border border-gray-200 bg-white focus:outline-none focus:border-blue-400"
                         />
                       </div>
                       <button
