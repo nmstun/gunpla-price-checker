@@ -80,13 +80,3 @@ export function toOffer(hit: YahooHit): Offer {
     fixedPrice: hit.priceLabel?.fixedPrice ? Number(hit.priceLabel.fixedPrice) : 0,
   }
 }
-
-// 上位オファーの中から信頼ストアの価格を基準定価として採用し、無ければ最安値を使う
-export function detectOfficialPrice(topOffers: Offer[]): number {
-  for (const offer of topOffers) {
-    if (offer.storeId && TRUSTED_STORE_IDS.includes(offer.storeId)) {
-      return offer.fixedPrice > 0 ? offer.fixedPrice : offer.price
-    }
-  }
-  return topOffers[0].price
-}

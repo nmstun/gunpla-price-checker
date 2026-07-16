@@ -27,14 +27,12 @@ export async function POST(request: Request) {
         janCode,
         itemName: cached.itemName,
         officialPrice: cached.officialPrice,
-        priceSource: cached.priceSource,
         storeName: store,
       })
       const result: CheckPriceResult = {
         source: 'cache',
         itemName: cached.itemName,
         officialPrice: cached.officialPrice,
-        priceSource: cached.priceSource,
         offers: [],
         scanHistoryId,
       }
@@ -46,12 +44,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: lookup.error }, { status: lookup.status })
     }
 
-    await saveItem(janCode, lookup.itemName, lookup.officialPrice, lookup.priceSource)
+    // バンダイ公式で確認できた場合のみキャッシュする（未確認のまま24時間キャッシュすると
+    // その間ずっと再確認できなくなるため）
+    if (lookup.officialPrice !== null) {
+      await saveItem(janCode, lookup.itemName, lookup.officialPrice)
+    }
+
     const scanHistoryId = await saveScanHistory({
       janCode,
       itemName: lookup.itemName,
       officialPrice: lookup.officialPrice,
-      priceSource: lookup.priceSource,
       storeName: store,
     })
 
@@ -59,7 +61,6 @@ export async function POST(request: Request) {
       source: 'live_fetch',
       itemName: lookup.itemName,
       officialPrice: lookup.officialPrice,
-      priceSource: lookup.priceSource,
       offers: lookup.offers,
       scanHistoryId,
     }

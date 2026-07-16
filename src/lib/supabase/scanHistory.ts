@@ -1,12 +1,11 @@
 import { createClient as createServerClient } from './server'
 import { createClient as createBrowserClient } from './client'
-import { PriceSource, ScanHistoryEntry } from '@/types'
+import { ScanHistoryEntry } from '@/types'
 
 interface SaveScanHistoryInput {
   janCode: string
   itemName: string
-  officialPrice: number
-  priceSource: PriceSource
+  officialPrice: number | null
   storeName: string
 }
 
@@ -27,7 +26,6 @@ export async function saveScanHistory(input: SaveScanHistoryInput): Promise<stri
           jan_code: input.janCode,
           item_name: input.itemName,
           official_price: input.officialPrice,
-          price_source: input.priceSource,
           store_name: storeName,
         },
       ])
@@ -47,8 +45,7 @@ export async function saveScanHistory(input: SaveScanHistoryInput): Promise<stri
 
 interface RefreshScanHistoryInput {
   itemName: string
-  officialPrice: number
-  priceSource: PriceSource
+  officialPrice: number | null
 }
 
 // 定価再取得APIルート（サーバー）から呼ぶ。既存の履歴行を最新の定価情報で上書きする。
@@ -62,7 +59,6 @@ export async function refreshScanHistoryPrice(id: string, input: RefreshScanHist
     .update({
       item_name: input.itemName,
       official_price: input.officialPrice,
-      price_source: input.priceSource,
     })
     .eq('id', id)
 
@@ -77,22 +73,20 @@ interface ScanHistoryRow {
   id: string
   jan_code: string
   item_name: string
-  official_price: number
-  price_source: PriceSource
+  official_price: number | null
   store_name: string
   store_price: number | null
   scanned_at: string
 }
 
-const SELECT_COLUMNS = 'id, jan_code, item_name, official_price, price_source, store_name, store_price, scanned_at'
+const SELECT_COLUMNS = 'id, jan_code, item_name, official_price, store_name, store_price, scanned_at'
 
 function mapRow(row: ScanHistoryRow): ScanHistoryEntry {
   return {
     id: row.id,
     janCode: row.jan_code,
     itemName: row.item_name,
-    officialPrice: row.official_price,
-    priceSource: row.price_source,
+    officialPrice: row.official_price === null ? null : Number(row.official_price),
     storeName: row.store_name,
     storePrice: row.store_price,
     scannedAt: row.scanned_at,

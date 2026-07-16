@@ -108,17 +108,26 @@ function SwipeableHistoryRow({
         </div>
         <p className="text-sm font-bold text-gray-800 leading-snug mt-1">{entry.itemName}</p>
         <div className="flex items-center justify-between mt-1.5">
-          <span className="text-base font-black text-gray-900">
-            ¥{entry.officialPrice.toLocaleString()}
-          </span>
-          {entry.priceSource === "bandai_msrp" ? (
-            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">
-              公式
-            </span>
+          {entry.officialPrice !== null ? (
+            <>
+              <span className="text-base font-black text-gray-900">
+                ¥{entry.officialPrice.toLocaleString()}
+              </span>
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">
+                公式
+              </span>
+            </>
+          ) : entry.storePrice !== null ? (
+            <>
+              <span className="text-base font-black text-gray-900">
+                ¥{entry.storePrice.toLocaleString()}
+              </span>
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-gray-200 text-gray-600">
+                店舗価格
+              </span>
+            </>
           ) : (
-            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">
-              推定
-            </span>
+            <span className="text-xs text-gray-400">定価未確認</span>
           )}
         </div>
       </div>

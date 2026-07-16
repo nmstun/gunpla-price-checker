@@ -311,27 +311,41 @@ export default function Home() {
               </h2>
             </div>
 
-            {/* 基準定価カード */}
-            <div className="p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border border-blue-100 flex items-center justify-between">
-              <div>
-                <span className="text-xs text-blue-600 font-medium block">
-                  {result.priceSource === "bandai_msrp" ? "メーカー希望小売価格" : "量販店価格の目安（未確認）"}
-                </span>
-                <span className="text-2xl font-black text-blue-900 mt-1 block">
-                  ¥{result.officialPrice.toLocaleString()} <span className="text-xs font-normal text-gray-500">(税込)</span>
-                </span>
-              </div>
-
-              <div className="text-right">
-                <span className="text-xs text-gray-400 block">情報ソース</span>
-                {result.priceSource === "bandai_msrp" ? (
-                  <span className="inline-block mt-1 text-xs font-bold px-2 py-1 rounded-full bg-green-100 text-green-700">
-                    バンダイ公式サイト照合済み
+            {/* 定価・最安値の比較 */}
+            <div className="rounded-xl border border-gray-100 divide-y divide-gray-100 overflow-hidden">
+              {/* メーカー希望小売価格（バンダイ公式で確認できた場合のみ） */}
+              <div className="p-4 bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <span className="text-xs text-blue-600 font-medium block">メーカー希望小売価格</span>
+                  {result.officialPrice !== null ? (
+                    <span className="text-2xl font-black text-blue-900 mt-1 block">
+                      ¥{result.officialPrice.toLocaleString()}
+                      <span className="text-xs font-normal text-gray-500"> (税込)</span>
+                    </span>
+                  ) : (
+                    <span className="text-sm text-gray-400 mt-1 block">未確認</span>
+                  )}
+                </div>
+                {result.officialPrice !== null ? (
+                  <span className="shrink-0 text-xs font-bold px-2 py-1 rounded-full bg-green-100 text-green-700 whitespace-nowrap">
+                    公式照合済み
                   </span>
                 ) : (
-                  <span className="inline-block mt-1 text-xs font-bold px-2 py-1 rounded-full bg-amber-100 text-amber-700">
-                    公式未確認・推定値
+                  <span className="shrink-0 text-xs font-bold px-2 py-1 rounded-full bg-gray-200 text-gray-600 whitespace-nowrap">
+                    未確認
                   </span>
+                )}
+              </div>
+
+              {/* 最安値 */}
+              <div className="p-4 bg-white flex items-center justify-between gap-2">
+                <span className="text-xs text-gray-500 font-medium">Yahoo!ショッピング最安値</span>
+                {result.offers.length > 0 ? (
+                  <span className="text-lg font-black text-gray-900">
+                    ¥{result.offers[0].price.toLocaleString()}
+                  </span>
+                ) : (
+                  <span className="text-xs text-gray-400">未取得</span>
                 )}
               </div>
             </div>

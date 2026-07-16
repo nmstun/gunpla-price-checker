@@ -35,11 +35,12 @@ export async function POST(request: Request) {
     const lowestMarketPrice = lookup.offers[0]?.price ?? null
 
     if (shouldPersist) {
-      await saveItem(janCode, lookup.itemName, lookup.officialPrice, lookup.priceSource)
+      if (lookup.officialPrice !== null) {
+        await saveItem(janCode, lookup.itemName, lookup.officialPrice)
+      }
       const ok = await refreshScanHistoryPrice(scanHistoryId, {
         itemName: lookup.itemName,
         officialPrice: lookup.officialPrice,
-        priceSource: lookup.priceSource,
       })
       if (!ok) {
         return NextResponse.json({ error: '履歴の更新に失敗しました' }, { status: 500 })
@@ -49,7 +50,6 @@ export async function POST(request: Request) {
     const result: RefreshPriceResult = {
       itemName: lookup.itemName,
       officialPrice: lookup.officialPrice,
-      priceSource: lookup.priceSource,
       lowestMarketPrice,
     }
     return NextResponse.json(result)

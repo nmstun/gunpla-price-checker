@@ -96,7 +96,6 @@ export default function HistoryDetailPage() {
         ...entry,
         itemName: refreshed.itemName,
         officialPrice: refreshed.officialPrice,
-        priceSource: refreshed.priceSource,
       });
       setLowestMarketPrice(refreshed.lowestMarketPrice);
     } catch (err) {
@@ -155,24 +154,26 @@ export default function HistoryDetailPage() {
 
             {/* 定価・最安値・店舗価格の比較 */}
             <div className="rounded-xl border border-gray-100 divide-y divide-gray-100 overflow-hidden">
-              {/* 定価 */}
+              {/* メーカー希望小売価格（バンダイ公式で確認できた場合のみ） */}
               <div className="p-4 bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-between gap-2">
                 <div className="min-w-0">
-                  <span className="text-xs text-blue-600 font-medium block">
-                    {entry.priceSource === "bandai_msrp" ? "メーカー希望小売価格" : "量販店価格の目安"}
-                  </span>
-                  <span className="text-2xl font-black text-blue-900 mt-1 block">
-                    ¥{entry.officialPrice.toLocaleString()}
-                    <span className="text-xs font-normal text-gray-500"> (税込)</span>
-                  </span>
+                  <span className="text-xs text-blue-600 font-medium block">メーカー希望小売価格</span>
+                  {entry.officialPrice !== null ? (
+                    <span className="text-2xl font-black text-blue-900 mt-1 block">
+                      ¥{entry.officialPrice.toLocaleString()}
+                      <span className="text-xs font-normal text-gray-500"> (税込)</span>
+                    </span>
+                  ) : (
+                    <span className="text-sm text-gray-400 mt-1 block">未確認</span>
+                  )}
                 </div>
-                {entry.priceSource === "bandai_msrp" ? (
+                {entry.officialPrice !== null ? (
                   <span className="shrink-0 text-xs font-bold px-2 py-1 rounded-full bg-green-100 text-green-700 whitespace-nowrap">
                     公式照合済み
                   </span>
                 ) : (
-                  <span className="shrink-0 text-xs font-bold px-2 py-1 rounded-full bg-amber-100 text-amber-700 whitespace-nowrap">
-                    未確認・推定
+                  <span className="shrink-0 text-xs font-bold px-2 py-1 rounded-full bg-gray-200 text-gray-600 whitespace-nowrap">
+                    未確認
                   </span>
                 )}
               </div>

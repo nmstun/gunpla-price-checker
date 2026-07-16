@@ -1,14 +1,14 @@
-import { Offer, PriceSource } from '@/types'
+import { Offer } from '@/types'
 import { cleanItemName, isNameMatching } from './itemName'
-import { fetchYahooHits, pickBaseItemName, isExcludedHit, toOffer, detectOfficialPrice } from './yahooShopping'
+import { fetchYahooHits, pickBaseItemName, isExcludedHit, toOffer } from './yahooShopping'
 import { findOfficialPriceByJanCode } from './bandaiHobby'
 
 const YAHOO_CLIENT_ID = process.env.YAHOO_CLIENT_ID
 
 export interface PriceLookupResult {
   itemName: string
-  officialPrice: number
-  priceSource: PriceSource
+  // バンダイ公式サイトでJANコード照合できた場合のみ値が入る。確認できなければnull
+  officialPrice: number | null
   offers: Offer[]
 }
 
@@ -48,22 +48,15 @@ export async function fetchLivePriceInfo(janCode: string): Promise<PriceLookupRe
 
   const topOffers = matchedHits.map(toOffer).sort((a, b) => a.price - b.price).slice(0, 3)
 
-  let officialPrice: number
-  let priceSource: PriceSource
+  // メーカー希望小売価格はバンダイ公式サイトでJANコード照合できた場合のみ採用する。
+  // 確認できない場合は量販店の実売価格を定価として代用せず、nullのまま返す
+  // （最安値は別途topOffersからいつでも都度取得できるため、フォールバックとして混ぜる必要がない）
+  let officialPrice: number | null = null
   try {
-    const bandaiPrice = await findOfficialPriceByJanCode(cleanedBaseName, janCode)
-    if (bandaiPrice !== null) {
-      officialPrice = bandaiPrice
-      priceSource = 'bandai_msrp'
-    } else {
-      officialPrice = detectOfficialPrice(topOffers)
-      priceSource = 'estimated'
-    }
+    officialPrice = await findOfficialPriceByJanCode(cleanedBaseName, janCode)
   } catch (bandaiError) {
-    console.error('バンダイ公式価格の取得に失敗、目安価格にフォールバック:', bandaiError)
-    officialPrice = detectOfficialPrice(topOffers)
-    priceSource = 'estimated'
+    console.error('バンダイ公式価格の取得に失敗:', bandaiError)
   }
 
-  return { itemName: cleanedBaseName, officialPrice, priceSource, offers: topOffers }
+  return { itemName: cleanedBaseName, officialPrice, offers: topOffers }
 }
