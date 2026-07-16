@@ -152,10 +152,11 @@ export default function HistoryDetailPage() {
               <p className="text-xs text-gray-400 mt-1">JAN: {entry.janCode}</p>
             </div>
 
-            {/* 定価・最安値・店舗価格の比較 */}
+            {/* 定価・最安値・店舗価格の比較。3行ともラベル(text-xs)を行の先頭に置き、
+                主要な値は同じ左端位置・同系統のフォントサイズで揃えている */}
             <div className="rounded-xl border border-gray-100 divide-y divide-gray-100 overflow-hidden">
               {/* メーカー希望小売価格（バンダイ公式で確認できた場合のみ） */}
-              <div className="p-4 bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-between gap-2">
+              <div className="p-4 bg-gradient-to-br from-blue-50 to-indigo-50 flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <span className="text-xs text-blue-600 font-medium block">メーカー希望小売価格</span>
                   {entry.officialPrice !== null ? (
@@ -179,28 +180,28 @@ export default function HistoryDetailPage() {
               </div>
 
               {/* 最安値（画面表示時に自動取得。保存はしない） */}
-              <div className="p-4 bg-white flex items-center justify-between gap-2">
-                <span className="text-xs text-gray-500 font-medium">Yahoo!ショッピング最安値</span>
+              <div className="p-4 bg-white">
+                <span className="text-xs text-gray-500 font-medium block">Yahoo!ショッピング最安値</span>
                 {lowestMarketLoading ? (
-                  <span className="text-xs text-gray-400 flex items-center gap-1.5">
+                  <span className="text-sm text-gray-400 mt-1 flex items-center gap-1.5">
                     <span className="w-3 h-3 border-2 border-gray-300 border-t-transparent rounded-full animate-spin" />
                     取得中...
                   </span>
                 ) : lowestMarketPrice !== null ? (
-                  <span className="text-lg font-black text-gray-900">
+                  <span className="text-2xl font-black text-gray-900 mt-1 block">
                     ¥{lowestMarketPrice.toLocaleString()}
                   </span>
                 ) : (
-                  <span className="text-xs text-gray-400">取得できませんでした</span>
+                  <span className="text-sm text-gray-400 mt-1 block">取得できませんでした</span>
                 )}
               </div>
 
               {/* 店舗価格（任意・編集可） */}
-              <div className="p-4 bg-gray-50 space-y-1.5">
+              <div className="p-4 bg-gray-50">
                 <label className="text-xs text-gray-500 font-medium block">この店舗での価格（任意）</label>
-                <div className="flex gap-2">
+                <div className="flex gap-2 mt-1">
                   <div className="flex-1 relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-base pointer-events-none">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xl pointer-events-none">
                       ¥
                     </span>
                     <input
@@ -212,20 +213,20 @@ export default function HistoryDetailPage() {
                         setSaveStatus("idle");
                       }}
                       placeholder="例: 6800"
-                      className="w-full text-base text-gray-900 pl-7 pr-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:border-blue-400"
+                      className="w-full text-2xl font-black text-gray-900 pl-8 pr-3 py-1.5 rounded-lg border border-gray-200 bg-white focus:outline-none focus:border-blue-400"
                     />
                   </div>
                   <button
                     onClick={handleSaveStorePrice}
                     disabled={saveStatus === "saving"}
-                    className="shrink-0 text-sm font-bold px-4 py-2 rounded-lg bg-white border border-gray-200 text-gray-600 active:bg-gray-100 transition disabled:opacity-50"
+                    className="shrink-0 self-center text-sm font-bold px-4 py-2 rounded-lg bg-white border border-gray-200 text-gray-600 active:bg-gray-100 transition disabled:opacity-50"
                   >
                     保存
                   </button>
                 </div>
-                {saveStatus === "saved" && <p className="text-[11px] text-green-600">保存しました</p>}
+                {saveStatus === "saved" && <p className="text-[11px] text-green-600 mt-1.5">保存しました</p>}
                 {saveStatus === "error" && (
-                  <p className="text-[11px] text-red-600">保存に失敗しました。もう一度お試しください</p>
+                  <p className="text-[11px] text-red-600 mt-1.5">保存に失敗しました。もう一度お試しください</p>
                 )}
               </div>
             </div>
