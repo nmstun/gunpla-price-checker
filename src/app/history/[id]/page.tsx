@@ -4,14 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { fetchScanHistoryEntry, updateStorePrice } from "@/lib/supabase/scanHistory";
-import { ScanHistoryEntry, PriceSource } from "@/types";
-
-interface RefreshResponse {
-  itemName: string;
-  officialPrice: number;
-  priceSource: PriceSource;
-  lowestMarketPrice: number | null;
-}
+import { ScanHistoryEntry, RefreshPriceResult } from "@/types";
 
 export default function HistoryDetailPage() {
   const params = useParams<{ id: string }>();
@@ -23,12 +16,15 @@ export default function HistoryDetailPage() {
 
   const [refreshing, setRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
+  // 最安値は都度取得の値なので保存せず、定価再取得を押すたびにここへ入れる
+  const [lowestMarketPrice, setLowestMarketPrice] = useState<number | null>(null);
 
   useEffect(() => {
     fetchScanHistoryEntry(params.id)
       .then((data) => {
         setEntry(data);
         setPriceInput(data?.storePrice?.toString() ?? "");
+        setLowestMarketPrice(null);
       })
       .finally(() => setLoading(false));
   }, [params.id]);
@@ -65,14 +61,14 @@ export default function HistoryDetailPage() {
       if (!res.ok) {
         throw new Error(data.error || "定価の再取得に失敗しました");
       }
-      const refreshed = data as RefreshResponse;
+      const refreshed = data as RefreshPriceResult;
       setEntry({
         ...entry,
         itemName: refreshed.itemName,
         officialPrice: refreshed.officialPrice,
         priceSource: refreshed.priceSource,
-        lowestMarketPrice: refreshed.lowestMarketPrice,
       });
+      setLowestMarketPrice(refreshed.lowestMarketPrice);
     } catch (err) {
       setRefreshError(err instanceof Error ? err.message : "定価の再取得に失敗しました");
     } finally {
@@ -152,15 +148,15 @@ export default function HistoryDetailPage() {
               </div>
             </div>
 
-            {/* 最安値 */}
-            <div className="p-4 bg-gray-50 rounded-xl border border-gray-100 flex items-center justify-between">
-              <span className="text-xs text-gray-500 font-medium">Yahoo!ショッピング最安値</span>
-              {entry.lowestMarketPrice !== null ? (
-                <span className="text-lg font-black text-gray-900">
-                  ¥{entry.lowestMarketPrice.toLocaleString()}
+            {/* 最安値（都度取得。保存はしない） */}
+            <div className="p-4 bg-gray-50 rounded-xl border border-gray-100 space-y-1">
+              <span className="text-xs text-gray-500 font-medium block">Yahoo!ショッピング最安値</span>
+              {lowestMarketPrice !== null ? (
+                <span className="text-lg font-black text-gray-900 block">
+                  ¥{lowestMarketPrice.toLocaleString()}
                 </span>
               ) : (
-                <span className="text-xs text-gray-400">未取得（定価再取得で確認できます）</span>
+                <span className="text-xs text-gray-400 block">未取得（定価再取得で確認できます）</span>
               )}
             </div>
 

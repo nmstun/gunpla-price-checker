@@ -8,7 +8,6 @@ interface SaveScanHistoryInput {
   officialPrice: number
   priceSource: PriceSource
   storeName: string
-  lowestMarketPrice: number | null
 }
 
 // APIルート（サーバー）から呼ぶ。storeNameが空なら店舗未選択のスキャンとして記録しない。
@@ -30,7 +29,6 @@ export async function saveScanHistory(input: SaveScanHistoryInput): Promise<stri
           official_price: input.officialPrice,
           price_source: input.priceSource,
           store_name: storeName,
-          lowest_market_price: input.lowestMarketPrice,
         },
       ])
       .select('id')
@@ -51,10 +49,10 @@ interface RefreshScanHistoryInput {
   itemName: string
   officialPrice: number
   priceSource: PriceSource
-  lowestMarketPrice: number | null
 }
 
-// 定価再取得APIルート（サーバー）から呼ぶ。既存の履歴行を最新の価格情報で上書きする
+// 定価再取得APIルート（サーバー）から呼ぶ。既存の履歴行を最新の定価情報で上書きする。
+// 最安値は都度取得の値なので保存しない（呼び出し元がレスポンスとして表示するだけ）
 export async function refreshScanHistoryPrice(id: string, input: RefreshScanHistoryInput): Promise<boolean> {
   const supabase = createServerClient()
   if (!supabase) return false
@@ -65,7 +63,6 @@ export async function refreshScanHistoryPrice(id: string, input: RefreshScanHist
       item_name: input.itemName,
       official_price: input.officialPrice,
       price_source: input.priceSource,
-      lowest_market_price: input.lowestMarketPrice,
     })
     .eq('id', id)
 
@@ -84,12 +81,10 @@ interface ScanHistoryRow {
   price_source: PriceSource
   store_name: string
   store_price: number | null
-  lowest_market_price: number | null
   scanned_at: string
 }
 
-const SELECT_COLUMNS =
-  'id, jan_code, item_name, official_price, price_source, store_name, store_price, lowest_market_price, scanned_at'
+const SELECT_COLUMNS = 'id, jan_code, item_name, official_price, price_source, store_name, store_price, scanned_at'
 
 function mapRow(row: ScanHistoryRow): ScanHistoryEntry {
   return {
@@ -100,7 +95,6 @@ function mapRow(row: ScanHistoryRow): ScanHistoryEntry {
     priceSource: row.price_source,
     storeName: row.store_name,
     storePrice: row.store_price,
-    lowestMarketPrice: row.lowest_market_price,
     scannedAt: row.scanned_at,
   }
 }

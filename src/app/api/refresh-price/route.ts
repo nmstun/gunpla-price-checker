@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server'
+import { RefreshPriceResult } from '@/types'
 import { saveItem } from '@/lib/supabase/items'
 import { refreshScanHistoryPrice } from '@/lib/supabase/scanHistory'
 import { fetchLivePriceInfo, isPriceLookupError } from '@/utils/priceLookup'
 
-// キャッシュを無視して最新の定価情報を取得し、既存のスキャン履歴行を上書きする
+// キャッシュを無視して最新の定価情報を取得し、既存のスキャン履歴行を上書きする。
+// 最安値は都度取得の値なのでDBには保存せず、レスポンスとして返すだけにする
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
@@ -34,18 +36,18 @@ export async function POST(request: Request) {
       itemName: lookup.itemName,
       officialPrice: lookup.officialPrice,
       priceSource: lookup.priceSource,
-      lowestMarketPrice,
     })
     if (!ok) {
       return NextResponse.json({ error: '履歴の更新に失敗しました' }, { status: 500 })
     }
 
-    return NextResponse.json({
+    const result: RefreshPriceResult = {
       itemName: lookup.itemName,
       officialPrice: lookup.officialPrice,
       priceSource: lookup.priceSource,
       lowestMarketPrice,
-    })
+    }
+    return NextResponse.json(result)
   } catch (error) {
     console.error('システムエラー:', error)
     return NextResponse.json({ error: 'サーバーエラーが発生しました' }, { status: 500 })

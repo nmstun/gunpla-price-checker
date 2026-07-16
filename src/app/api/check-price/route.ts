@@ -29,7 +29,6 @@ export async function POST(request: Request) {
         officialPrice: cached.officialPrice,
         priceSource: cached.priceSource,
         storeName: store,
-        lowestMarketPrice: null,
       })
       const result: CheckPriceResult = {
         source: 'cache',
@@ -54,7 +53,6 @@ export async function POST(request: Request) {
       officialPrice: lookup.officialPrice,
       priceSource: lookup.priceSource,
       storeName: store,
-      lowestMarketPrice: lookup.offers[0]?.price ?? null,
     })
 
     const result: CheckPriceResult = {
