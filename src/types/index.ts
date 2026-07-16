@@ -25,6 +25,9 @@ export interface ScanHistoryEntry {
   janCode: string
   itemName: string
   officialPrice: number | null
+  // 定価がバンダイ公式照合ではなくユーザーの手動入力によるものかどうか。
+  // trueのときUIは「公式照合済み」ではなく「手動入力」バッジで区別表示する
+  officialPriceIsManual: boolean
   storeName: string
   storePrice: number | null
   scannedAt: string

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { fetchScanHistoryEntry, updateStorePrice } from "@/lib/supabase/scanHistory";
+import { fetchScanHistoryEntry, updateStorePrice, updateOfficialPrice } from "@/lib/supabase/scanHistory";
 import { ScanHistoryEntry, RefreshPriceResult } from "@/types";
 
 export default function HistoryDetailPage() {
@@ -14,6 +14,11 @@ export default function HistoryDetailPage() {
   const [priceInput, setPriceInput] = useState("");
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "error">("idle");
   const [isEditingStorePrice, setIsEditingStorePrice] = useState(false);
+
+  // 定価の手動入力・編集用（自動取得できない商品向け）
+  const [officialInput, setOfficialInput] = useState("");
+  const [officialSaveStatus, setOfficialSaveStatus] = useState<"idle" | "saving" | "error">("idle");
+  const [isEditingOfficialPrice, setIsEditingOfficialPrice] = useState(false);
 
   const [refreshing, setRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
@@ -91,6 +96,37 @@ export default function HistoryDetailPage() {
     }
   };
 
+  const handleStartEditOfficialPrice = () => {
+    if (!entry) return;
+    setOfficialInput(entry.officialPrice?.toString() ?? "");
+    setOfficialSaveStatus("idle");
+    setIsEditingOfficialPrice(true);
+  };
+
+  const handleCancelEditOfficialPrice = () => {
+    setOfficialSaveStatus("idle");
+    setIsEditingOfficialPrice(false);
+  };
+
+  const handleSaveOfficialPrice = async () => {
+    if (!entry) return;
+    const trimmed = officialInput.trim();
+    const price = trimmed === "" ? null : Number(trimmed);
+    if (price !== null && (!Number.isFinite(price) || price < 0)) {
+      setOfficialSaveStatus("error");
+      return;
+    }
+    setOfficialSaveStatus("saving");
+    const ok = await updateOfficialPrice(entry.id, price);
+    if (ok) {
+      setEntry({ ...entry, officialPrice: price, officialPriceIsManual: price !== null });
+      setOfficialSaveStatus("idle");
+      setIsEditingOfficialPrice(false);
+    } else {
+      setOfficialSaveStatus("error");
+    }
+  };
+
   const handleRefresh = async () => {
     if (!entry) return;
     setRefreshing(true);
@@ -109,7 +145,11 @@ export default function HistoryDetailPage() {
       setEntry({
         ...entry,
         itemName: refreshed.itemName,
-        officialPrice: refreshed.officialPrice,
+        // 公式定価を取得できたときだけ上書きし手動フラグを下ろす。取得できなかった（null）
+        // 場合はユーザーの手動入力値を空振りで消さないよう、既存の定価をそのまま維持する
+        ...(refreshed.officialPrice !== null
+          ? { officialPrice: refreshed.officialPrice, officialPriceIsManual: false }
+          : {}),
       });
       setLowestMarketPrice(refreshed.lowestMarketPrice);
     } catch (err) {
@@ -169,27 +209,90 @@ export default function HistoryDetailPage() {
             {/* 定価・最安値・店舗価格の比較。3行ともラベル(text-xs)を行の先頭に置き、
                 主要な値は同じ左端位置・同系統のフォントサイズで揃えている */}
             <div className="rounded-xl border border-gray-100 divide-y divide-gray-100 overflow-hidden">
-              {/* メーカー希望小売価格（バンダイ公式で確認できた場合のみ） */}
-              <div className="p-4 bg-gradient-to-br from-blue-50 to-indigo-50 flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <span className="text-xs text-blue-600 font-medium block">メーカー希望小売価格</span>
-                  {entry.officialPrice !== null ? (
-                    <span className="text-2xl font-normal text-blue-900 mt-1 block">
-                      ¥{entry.officialPrice.toLocaleString()}
-                      <span className="text-xs font-normal text-gray-500"> (税込)</span>
-                    </span>
-                  ) : (
-                    <span className="text-sm text-gray-400 mt-1 block">未確認</span>
+              {/* メーカー希望小売価格。バンダイ公式で照合できた値・ユーザーの手動入力値・
+                  未確認の3状態をバッジで区別する。自動取得できない商品向けに手動編集できる */}
+              <div className="p-4 bg-gradient-to-br from-blue-50 to-indigo-50">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <span className="text-xs text-blue-600 font-medium block">メーカー希望小売価格</span>
+                    {!isEditingOfficialPrice && (
+                      entry.officialPrice !== null ? (
+                        <span className="text-2xl font-normal text-blue-900 mt-1 block">
+                          ¥{entry.officialPrice.toLocaleString()}
+                          <span className="text-xs font-normal text-gray-500"> (税込)</span>
+                        </span>
+                      ) : (
+                        <span className="text-sm text-gray-400 mt-1 block">未確認</span>
+                      )
+                    )}
+                  </div>
+                  {!isEditingOfficialPrice && (
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {entry.officialPrice === null ? (
+                        <span className="text-xs font-bold px-2 py-1 rounded-full bg-gray-200 text-gray-600 whitespace-nowrap">
+                          未確認
+                        </span>
+                      ) : entry.officialPriceIsManual ? (
+                        <span className="text-xs font-bold px-2 py-1 rounded-full bg-amber-100 text-amber-700 whitespace-nowrap">
+                          手動入力
+                        </span>
+                      ) : (
+                        <span className="text-xs font-bold px-2 py-1 rounded-full bg-green-100 text-green-700 whitespace-nowrap">
+                          公式照合済み
+                        </span>
+                      )}
+                      <button
+                        onClick={handleStartEditOfficialPrice}
+                        className="text-xs font-bold px-2 py-1 rounded-full bg-white/70 text-blue-700 active:bg-white transition whitespace-nowrap"
+                      >
+                        編集
+                      </button>
+                    </div>
                   )}
                 </div>
-                {entry.officialPrice !== null ? (
-                  <span className="shrink-0 text-xs font-bold px-2 py-1 rounded-full bg-green-100 text-green-700 whitespace-nowrap">
-                    公式照合済み
-                  </span>
-                ) : (
-                  <span className="shrink-0 text-xs font-bold px-2 py-1 rounded-full bg-gray-200 text-gray-600 whitespace-nowrap">
-                    未確認
-                  </span>
+
+                {isEditingOfficialPrice && (
+                  <div className="mt-1">
+                    <div className="flex gap-2">
+                      <div className="flex-1 relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xl pointer-events-none">
+                          ¥
+                        </span>
+                        <input
+                          type="number"
+                          inputMode="numeric"
+                          autoFocus
+                          value={officialInput}
+                          onChange={(e) => {
+                            setOfficialInput(e.target.value);
+                            setOfficialSaveStatus("idle");
+                          }}
+                          placeholder="例: 2200"
+                          className="w-full text-2xl font-normal text-gray-900 pl-8 pr-3 py-1.5 rounded-lg border border-gray-200 bg-white focus:outline-none focus:border-blue-400"
+                        />
+                      </div>
+                      <button
+                        onClick={handleSaveOfficialPrice}
+                        disabled={officialSaveStatus === "saving"}
+                        className="shrink-0 self-center text-sm font-bold px-4 py-2 rounded-lg bg-white border border-gray-200 text-gray-600 active:bg-gray-100 transition disabled:opacity-50"
+                      >
+                        保存
+                      </button>
+                      <button
+                        onClick={handleCancelEditOfficialPrice}
+                        disabled={officialSaveStatus === "saving"}
+                        className="shrink-0 self-center text-sm font-bold px-3 py-2 rounded-lg text-gray-400 active:bg-gray-100 transition disabled:opacity-50"
+                      >
+                        取消
+                      </button>
+                    </div>
+                    <p className="text-[11px] text-gray-500 mt-1.5">
+                      手動入力した定価は「手動入力」と表示されます。空欄で保存すると未確認に戻せます。
+                    </p>
+                    {officialSaveStatus === "error" && (
+                      <p className="text-[11px] text-red-600 mt-1">保存に失敗しました。もう一度お試しください</p>
+                    )}
+                  </div>
                 )}
               </div>
 

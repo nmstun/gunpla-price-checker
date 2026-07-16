@@ -49,18 +49,21 @@ interface RefreshScanHistoryInput {
 }
 
 // 定価再取得APIルート（サーバー）から呼ぶ。既存の履歴行を最新の定価情報で上書きする。
-// 最安値は都度取得の値なので保存しない（呼び出し元がレスポンスとして表示するだけ）
+// 最安値は都度取得の値なので保存しない（呼び出し元がレスポンスとして表示するだけ）。
+// 公式定価を取得できた場合のみofficial_priceを更新し手動フラグを下ろす。
+// 取得できなかった（null）場合はofficial_priceを触らない＝ユーザーの手動入力値を
+// 再取得の空振りで消してしまわないようにする（商品名だけは更新する）
 export async function refreshScanHistoryPrice(id: string, input: RefreshScanHistoryInput): Promise<boolean> {
   const supabase = createServerClient()
   if (!supabase) return false
 
-  const { error } = await supabase
-    .from('scan_history')
-    .update({
-      item_name: input.itemName,
-      official_price: input.officialPrice,
-    })
-    .eq('id', id)
+  const update: Record<string, unknown> = { item_name: input.itemName }
+  if (input.officialPrice !== null) {
+    update.official_price = input.officialPrice
+    update.official_price_is_manual = false
+  }
+
+  const { error } = await supabase.from('scan_history').update(update).eq('id', id)
 
   if (error) {
     console.error('定価再取得の反映に失敗:', error)
@@ -74,12 +77,14 @@ interface ScanHistoryRow {
   jan_code: string
   item_name: string
   official_price: number | null
+  official_price_is_manual: boolean
   store_name: string
   store_price: number | null
   scanned_at: string
 }
 
-const SELECT_COLUMNS = 'id, jan_code, item_name, official_price, store_name, store_price, scanned_at'
+const SELECT_COLUMNS =
+  'id, jan_code, item_name, official_price, official_price_is_manual, store_name, store_price, scanned_at'
 
 function mapRow(row: ScanHistoryRow): ScanHistoryEntry {
   return {
@@ -87,6 +92,7 @@ function mapRow(row: ScanHistoryRow): ScanHistoryEntry {
     janCode: row.jan_code,
     itemName: row.item_name,
     officialPrice: row.official_price === null ? null : Number(row.official_price),
+    officialPriceIsManual: row.official_price_is_manual ?? false,
     storeName: row.store_name,
     storePrice: row.store_price,
     scannedAt: row.scanned_at,
@@ -144,6 +150,27 @@ export async function updateStorePrice(id: string, storePrice: number | null): P
   const { error } = await supabase.from('scan_history').update({ store_price: storePrice }).eq('id', id)
   if (error) {
     console.error('店舗販売価格の更新に失敗:', error)
+    return false
+  }
+  return true
+}
+
+// 履歴詳細画面から呼ぶ（クライアントコンポーネント用）。定価をどうしても自動取得
+// できない商品向けの手動入力・編集。値を入れると手動フラグを立て（UIで「手動入力」
+// バッジを出すため）、nullを渡すと未確認状態（手動フラグも解除）に戻せる
+export async function updateOfficialPrice(id: string, officialPrice: number | null): Promise<boolean> {
+  const supabase = createBrowserClient()
+  if (!supabase) return false
+
+  const { error } = await supabase
+    .from('scan_history')
+    .update({
+      official_price: officialPrice,
+      official_price_is_manual: officialPrice !== null,
+    })
+    .eq('id', id)
+  if (error) {
+    console.error('定価の手動更新に失敗:', error)
     return false
   }
   return true

@@ -12,11 +12,20 @@ const DELETE_WIDTH = 88;
 // プラスなら定価より高い＝プレ値、マイナスなら定価より安い、という色分け
 function PriceSummary({
   officialPrice,
+  officialPriceIsManual,
   storePrice,
 }: {
   officialPrice: number | null;
+  officialPriceIsManual: boolean;
   storePrice: number | null;
 }) {
+  // 定価が手動入力か公式照合済みかでバッジを出し分ける
+  const officialBadge = officialPriceIsManual ? (
+    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">手動</span>
+  ) : (
+    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">公式</span>
+  );
+
   if (officialPrice === null && storePrice === null) {
     return <span className="text-xs text-gray-400">定価未確認</span>;
   }
@@ -31,6 +40,9 @@ function PriceSummary({
         <span className="text-sm text-gray-900">定価 ¥{officialPrice.toLocaleString()}</span>
         <span className="text-sm text-gray-900">店舗 ¥{storePrice.toLocaleString()}</span>
         <span className={`text-xs font-medium ${diffColor}`}>{diffLabel}</span>
+        {officialPriceIsManual && (
+          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">手動</span>
+        )}
       </div>
     );
   }
@@ -39,7 +51,7 @@ function PriceSummary({
     return (
       <div className="flex items-center justify-between">
         <span className="text-sm text-gray-900">¥{officialPrice.toLocaleString()}</span>
-        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">公式</span>
+        {officialBadge}
       </div>
     );
   }
@@ -152,7 +164,11 @@ function SwipeableHistoryRow({
         </div>
         <p className="text-sm font-bold text-gray-800 leading-snug mt-1">{entry.itemName}</p>
         <div className="mt-1.5">
-          <PriceSummary officialPrice={entry.officialPrice} storePrice={entry.storePrice} />
+          <PriceSummary
+            officialPrice={entry.officialPrice}
+            officialPriceIsManual={entry.officialPriceIsManual}
+            storePrice={entry.storePrice}
+          />
         </div>
       </div>
     </div>
