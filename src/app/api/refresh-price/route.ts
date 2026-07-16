@@ -4,8 +4,10 @@ import { saveItem } from '@/lib/supabase/items'
 import { refreshScanHistoryPrice } from '@/lib/supabase/scanHistory'
 import { fetchLivePriceInfo, isPriceLookupError } from '@/utils/priceLookup'
 
-// キャッシュを無視して最新の定価情報を取得し、既存のスキャン履歴行を上書きする。
-// 最安値は都度取得の値なのでDBには保存せず、レスポンスとして返すだけにする
+// キャッシュを無視して最新の定価・最安値情報を取得する。
+// persist!==falseの場合のみ、既存のスキャン履歴行の定価を上書き保存する
+// （履歴詳細画面を開いた瞬間の自動取得はpersist:falseで呼び、閲覧しただけで
+// 保存済みの定価が書き換わらないようにしている）。最安値はいずれの場合も保存しない
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
@@ -15,9 +17,10 @@ function isValidJanCode(janCode: unknown): janCode is string {
 
 export async function POST(request: Request) {
   try {
-    const { scanHistoryId, janCode } = await request.json()
+    const { scanHistoryId, janCode, persist } = await request.json()
+    const shouldPersist = persist !== false
 
-    if (typeof scanHistoryId !== 'string' || !scanHistoryId) {
+    if (shouldPersist && (typeof scanHistoryId !== 'string' || !scanHistoryId)) {
       return NextResponse.json({ error: '不正なリクエストです' }, { status: 400 })
     }
     if (!isValidJanCode(janCode)) {
@@ -31,14 +34,16 @@ export async function POST(request: Request) {
 
     const lowestMarketPrice = lookup.offers[0]?.price ?? null
 
-    await saveItem(janCode, lookup.itemName, lookup.officialPrice, lookup.priceSource)
-    const ok = await refreshScanHistoryPrice(scanHistoryId, {
-      itemName: lookup.itemName,
-      officialPrice: lookup.officialPrice,
-      priceSource: lookup.priceSource,
-    })
-    if (!ok) {
-      return NextResponse.json({ error: '履歴の更新に失敗しました' }, { status: 500 })
+    if (shouldPersist) {
+      await saveItem(janCode, lookup.itemName, lookup.officialPrice, lookup.priceSource)
+      const ok = await refreshScanHistoryPrice(scanHistoryId, {
+        itemName: lookup.itemName,
+        officialPrice: lookup.officialPrice,
+        priceSource: lookup.priceSource,
+      })
+      if (!ok) {
+        return NextResponse.json({ error: '履歴の更新に失敗しました' }, { status: 500 })
+      }
     }
 
     const result: RefreshPriceResult = {
