@@ -64,8 +64,17 @@ function toBandaiSearchKeyword(name: string): string {
   return cleaned.replace(GRADE_PREFIX_PATTERN, '')
 }
 
-async function searchBandaiHobbyProducts(rawKeyword: string): Promise<BandaiProduct[]> {
-  const keyword = toBandaiSearchKeyword(rawKeyword)
+// "MSZ-010"や"RGM-89De"のような型式番号。バンダイ側の実際の商品名に型式番号が
+// 含まれていない場合、キーワードに残したままだと部分一致せず0件になることが実測でわかった。
+// （逆に型式番号込みで一致するケースもあるため、まず型式番号込みで検索し、0件のときだけ
+// 型式番号を除いて再検索するフォールバックにしている）
+const MODEL_CODE_PATTERN = /[A-Za-z]{1,4}-[A-Za-z0-9]+/g
+
+function stripModelCode(keyword: string): string {
+  return keyword.replace(MODEL_CODE_PATTERN, '')
+}
+
+async function runBandaiSearch(keyword: string): Promise<BandaiProduct[]> {
   if (!keyword) return []
 
   const token = await fetchSearchTokenWithRetry(keyword)
@@ -98,6 +107,19 @@ async function searchBandaiHobbyProducts(rawKeyword: string): Promise<BandaiProd
       janCode: String(item.product.jancode),
       url: String(item.url ?? ''),
     }))
+}
+
+async function searchBandaiHobbyProducts(rawKeyword: string): Promise<BandaiProduct[]> {
+  const keyword = toBandaiSearchKeyword(rawKeyword)
+  if (!keyword) return []
+
+  const products = await runBandaiSearch(keyword)
+  if (products.length > 0) return products
+
+  const withoutModelCode = stripModelCode(keyword)
+  if (!withoutModelCode || withoutModelCode === keyword) return []
+
+  return runBandaiSearch(withoutModelCode)
 }
 
 // バンダイ側のjancodeはJAN13桁の末尾に "000" 等が付与された16桁で返ることがあるため前方一致で比較する
