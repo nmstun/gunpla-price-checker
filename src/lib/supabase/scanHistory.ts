@@ -128,6 +128,19 @@ export async function fetchScanHistoryEntry(id: string): Promise<ScanHistoryEntr
   return data ? mapRow(data as ScanHistoryRow) : null
 }
 
+// 履歴一覧のスワイプ削除から呼ぶ（クライアントコンポーネント用）
+export async function deleteScanHistoryEntry(id: string): Promise<boolean> {
+  const supabase = createBrowserClient()
+  if (!supabase) return false
+
+  const { error } = await supabase.from('scan_history').delete().eq('id', id)
+  if (error) {
+    console.error('スキャン履歴の削除に失敗:', error)
+    return false
+  }
+  return true
+}
+
 // スキャン結果画面・履歴詳細画面の両方から呼ぶ（クライアントコンポーネント用）。
 // storePriceにnullを渡すと未入力状態に戻せる
 export async function updateStorePrice(id: string, storePrice: number | null): Promise<boolean> {

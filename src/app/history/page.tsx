@@ -1,9 +1,130 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { fetchScanHistory } from "@/lib/supabase/scanHistory";
+import { fetchScanHistory, deleteScanHistoryEntry } from "@/lib/supabase/scanHistory";
 import { ScanHistoryEntry } from "@/types";
+
+const DELETE_WIDTH = 88;
+
+function SwipeableHistoryRow({
+  entry,
+  onDeleted,
+}: {
+  entry: ScanHistoryEntry;
+  onDeleted: (id: string) => void;
+}) {
+  const router = useRouter();
+  const [dragX, setDragX] = useState(0);
+  const [isPointerDown, setIsPointerDown] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const startXRef = useRef<number | null>(null);
+  const baseXRef = useRef(0);
+  const draggedRef = useRef(false);
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    startXRef.current = e.clientX;
+    baseXRef.current = dragX;
+    draggedRef.current = false;
+    setIsPointerDown(true);
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // 合成的なポインタイベント等、キャプチャできない場合は無視して続行する
+    }
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (startXRef.current === null) return;
+    const delta = e.clientX - startXRef.current;
+    if (Math.abs(delta) > 5) draggedRef.current = true;
+    setDragX(Math.min(0, Math.max(-DELETE_WIDTH, baseXRef.current + delta)));
+  };
+
+  const handlePointerUp = () => {
+    setIsPointerDown(false);
+    startXRef.current = null;
+    setDragX((current) => (current < -DELETE_WIDTH / 2 ? -DELETE_WIDTH : 0));
+  };
+
+  const handleRowClick = () => {
+    if (draggedRef.current) {
+      draggedRef.current = false;
+      return;
+    }
+    if (dragX !== 0) {
+      setDragX(0);
+      return;
+    }
+    router.push(`/history/${entry.id}`);
+  };
+
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDeleting(true);
+    const ok = await deleteScanHistoryEntry(entry.id);
+    if (ok) {
+      onDeleted(entry.id);
+    } else {
+      setDeleting(false);
+      setDragX(0);
+    }
+  };
+
+  return (
+    <div className="relative overflow-hidden bg-white">
+      <button
+        onClick={handleDelete}
+        disabled={deleting}
+        style={{ width: DELETE_WIDTH }}
+        className="absolute inset-y-0 right-0 flex items-center justify-center bg-red-500 text-white text-sm font-bold active:bg-red-600 disabled:opacity-60"
+      >
+        {deleting ? "削除中..." : "削除"}
+      </button>
+      <div
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+        onClick={handleRowClick}
+        style={{
+          transform: `translateX(${dragX}px)`,
+          transition: isPointerDown ? "none" : "transform 0.2s ease",
+          touchAction: "pan-y",
+        }}
+        className="relative bg-white active:bg-gray-50 p-3.5 cursor-pointer select-none"
+      >
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-[11px] font-bold text-gray-400 shrink-0">
+              {new Date(entry.scannedAt).toLocaleDateString("ja-JP")}
+            </span>
+            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 truncate">
+              {entry.storeName}
+            </span>
+          </div>
+          <span className="text-gray-300 shrink-0">›</span>
+        </div>
+        <p className="text-sm font-bold text-gray-800 leading-snug mt-1">{entry.itemName}</p>
+        <div className="flex items-center justify-between mt-1.5">
+          <span className="text-base font-black text-gray-900">
+            ¥{entry.officialPrice.toLocaleString()}
+          </span>
+          {entry.priceSource === "bandai_msrp" ? (
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">
+              公式
+            </span>
+          ) : (
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">
+              推定
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function HistoryPage() {
   const [entries, setEntries] = useState<ScanHistoryEntry[]>([]);
@@ -15,6 +136,10 @@ export default function HistoryPage() {
       .then(setEntries)
       .finally(() => setLoading(false));
   }, []);
+
+  const handleDeleted = (id: string) => {
+    setEntries((prev) => prev.filter((e) => e.id !== id));
+  };
 
   const stores = useMemo(() => {
     const unique = Array.from(new Set(entries.map((e) => e.storeName)));
@@ -69,6 +194,10 @@ export default function HistoryPage() {
           </div>
         )}
 
+        {!loading && filteredEntries.length > 0 && (
+          <p className="text-[11px] text-gray-400 text-center">左にスワイプすると削除できます</p>
+        )}
+
         {loading && (
           <div className="text-center py-8 text-gray-500 text-sm animate-pulse">
             読み込み中...
@@ -84,40 +213,7 @@ export default function HistoryPage() {
         {!loading && filteredEntries.length > 0 && (
           <div className="divide-y divide-gray-100 border border-gray-100 rounded-xl overflow-hidden">
             {filteredEntries.map((entry) => (
-              <Link
-                key={entry.id}
-                href={`/history/${entry.id}`}
-                className="flex items-center gap-3 p-3.5 bg-white active:bg-gray-50 transition-colors"
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-bold text-gray-400 shrink-0">
-                      {new Date(entry.scannedAt).toLocaleDateString("ja-JP")}
-                    </span>
-                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 truncate">
-                      {entry.storeName}
-                    </span>
-                  </div>
-                  <p className="text-sm font-bold text-gray-800 leading-snug truncate mt-1">
-                    {entry.itemName}
-                  </p>
-                </div>
-                <div className="shrink-0 text-right">
-                  <span className="text-base font-black text-gray-900 block">
-                    ¥{entry.officialPrice.toLocaleString()}
-                  </span>
-                  {entry.priceSource === "bandai_msrp" ? (
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">
-                      公式
-                    </span>
-                  ) : (
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">
-                      推定
-                    </span>
-                  )}
-                </div>
-                <span className="text-gray-300 shrink-0">›</span>
-              </Link>
+              <SwipeableHistoryRow key={entry.id} entry={entry} onDeleted={handleDeleted} />
             ))}
           </div>
         )}
