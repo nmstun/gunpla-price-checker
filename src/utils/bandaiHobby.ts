@@ -1,3 +1,5 @@
+import { isNameMatching } from './itemName'
+
 const SEARCH_PAGE_URL = 'https://bandai-hobby.net/search/'
 const PRODUCT_LIST_API = 'https://cmsapi-frontend.bandai-hobby.net/site/api/hobby/Product/list'
 // トークン取得は実測500ms前後だが、商品検索APIは実測で10秒を超えることがあるため長めに取る
@@ -133,9 +135,19 @@ function janCodeMatches(bandaiJanCode: string, scannedJanCode: string): boolean 
 }
 
 // 商品名で検索し、実際にスキャンしたJANコードと一致する商品が見つかれば
-// バンダイ公式の希望小売価格を返す。見つからなければnull（呼び出し側で目安価格にフォールバック）
+// バンダイ公式の希望小売価格を返す。
+// JAN完全一致が見つからない場合、商品名一致にフォールバックする。
+// （バンダイスピリッツ移行に伴うJAN再発番等で、公式サイト側のJANデータが
+// 更新されていない現行商品があることが実測でわかったため。同じ理由で
+// 複数の商品名候補が一致してしまう場合は、価格差のある別バリエーション
+// （カラバリ・Ver.違い等）を誤って採用するリスクの方が大きいので、
+// 一意に一件へ絞れないときは採用せずnullを返す）
 export async function findOfficialPriceByJanCode(keyword: string, janCode: string): Promise<number | null> {
   const products = await searchBandaiHobbyProducts(keyword)
-  const matched = products.find((p) => janCodeMatches(p.janCode, janCode))
-  return matched ? matched.price : null
+
+  const janMatched = products.find((p) => janCodeMatches(p.janCode, janCode))
+  if (janMatched) return janMatched.price
+
+  const nameMatched = products.filter((p) => isNameMatching(keyword, p.title))
+  return nameMatched.length === 1 ? nameMatched[0].price : null
 }
