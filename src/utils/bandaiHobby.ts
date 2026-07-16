@@ -126,6 +126,19 @@ function stripQualifierSuffix(keyword: string): string {
   return keyword.replace(QUALIFIER_SUFFIX_PATTERN, '')
 }
 
+// "（GUNDAM THUNDERBOLT Ver.）"のような末尾の括弧注記。バンダイの検索は
+// 記号もそのまま含んだ生の部分一致で動くため、スペースを除去した検索語
+// （例:"GUNDAMTHUNDERBOLTVer."）は、スペースを含むDB上の正式表記と
+// 部分一致せず0件になる。この末尾括弧を丸ごと落とすと、商品名の本体部分
+// （例:"高機動型ザク“サイコ・ザク”"）で検索でき、目的の商品が結果に出る
+// ようになる（実測で確認）。最終的な絞り込みはJANコードまたは商品名の
+// 完全一致で行うため、括弧を落として広く検索しても誤採用にはならない
+const TRAILING_PARENTHETICAL_PATTERN = /[（(][^（）()]*[）)]$/
+
+function stripTrailingParenthetical(keyword: string): string {
+  return keyword.replace(TRAILING_PARENTHETICAL_PATTERN, '')
+}
+
 async function runBandaiSearch(keyword: string): Promise<BandaiProduct[]> {
   if (!keyword) return []
 
@@ -208,10 +221,14 @@ export async function findOfficialPriceByJanCode(keyword: string, janCode: strin
   if (!baseKeyword) return { officialPrice: null, canonicalName }
 
   const keywordTiers = [baseKeyword]
-  const withoutModelCode = stripModelCode(baseKeyword)
-  if (withoutModelCode && !keywordTiers.includes(withoutModelCode)) keywordTiers.push(withoutModelCode)
-  const withoutQualifier = stripQualifierSuffix(keywordTiers[keywordTiers.length - 1])
-  if (withoutQualifier && !keywordTiers.includes(withoutQualifier)) keywordTiers.push(withoutQualifier)
+  const pushTier = (kw: string) => {
+    if (kw && !keywordTiers.includes(kw)) keywordTiers.push(kw)
+  }
+  // 段階的に情報を削って検索範囲を広げる（型式番号→末尾括弧注記→バリエーション接尾辞）。
+  // いずれも最終的にJANまたは商品名の完全一致で絞り込むため、広げすぎても誤採用しない
+  pushTier(stripModelCode(baseKeyword))
+  pushTier(stripTrailingParenthetical(keywordTiers[keywordTiers.length - 1]))
+  pushTier(stripQualifierSuffix(keywordTiers[keywordTiers.length - 1]))
 
   for (const tier of keywordTiers) {
     const products = await runBandaiSearch(tier)
