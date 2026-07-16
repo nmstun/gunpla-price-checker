@@ -31,5 +31,8 @@ export interface ScanHistoryEntry {
   priceSource: PriceSource
   storeName: string
   storePrice: number | null
+  // スキャン時点のYahoo!ショッピング最安値（任意）。キャッシュヒット時や
+  // 定価再取得前は取得できていないことがある
+  lowestMarketPrice: number | null
   scannedAt: string
 }

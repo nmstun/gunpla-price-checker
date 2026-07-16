@@ -8,6 +8,7 @@ interface SaveScanHistoryInput {
   officialPrice: number
   priceSource: PriceSource
   storeName: string
+  lowestMarketPrice: number | null
 }
 
 // APIルート（サーバー）から呼ぶ。storeNameが空なら店舗未選択のスキャンとして記録しない。
@@ -29,6 +30,7 @@ export async function saveScanHistory(input: SaveScanHistoryInput): Promise<stri
           official_price: input.officialPrice,
           price_source: input.priceSource,
           store_name: storeName,
+          lowest_market_price: input.lowestMarketPrice,
         },
       ])
       .select('id')
@@ -45,6 +47,35 @@ export async function saveScanHistory(input: SaveScanHistoryInput): Promise<stri
   }
 }
 
+interface RefreshScanHistoryInput {
+  itemName: string
+  officialPrice: number
+  priceSource: PriceSource
+  lowestMarketPrice: number | null
+}
+
+// 定価再取得APIルート（サーバー）から呼ぶ。既存の履歴行を最新の価格情報で上書きする
+export async function refreshScanHistoryPrice(id: string, input: RefreshScanHistoryInput): Promise<boolean> {
+  const supabase = createServerClient()
+  if (!supabase) return false
+
+  const { error } = await supabase
+    .from('scan_history')
+    .update({
+      item_name: input.itemName,
+      official_price: input.officialPrice,
+      price_source: input.priceSource,
+      lowest_market_price: input.lowestMarketPrice,
+    })
+    .eq('id', id)
+
+  if (error) {
+    console.error('定価再取得の反映に失敗:', error)
+    return false
+  }
+  return true
+}
+
 interface ScanHistoryRow {
   id: string
   jan_code: string
@@ -53,8 +84,12 @@ interface ScanHistoryRow {
   price_source: PriceSource
   store_name: string
   store_price: number | null
+  lowest_market_price: number | null
   scanned_at: string
 }
+
+const SELECT_COLUMNS =
+  'id, jan_code, item_name, official_price, price_source, store_name, store_price, lowest_market_price, scanned_at'
 
 function mapRow(row: ScanHistoryRow): ScanHistoryEntry {
   return {
@@ -65,6 +100,7 @@ function mapRow(row: ScanHistoryRow): ScanHistoryEntry {
     priceSource: row.price_source,
     storeName: row.store_name,
     storePrice: row.store_price,
+    lowestMarketPrice: row.lowest_market_price,
     scannedAt: row.scanned_at,
   }
 }
@@ -74,10 +110,7 @@ export async function fetchScanHistory(): Promise<ScanHistoryEntry[]> {
   const supabase = createBrowserClient()
   if (!supabase) return []
 
-  const { data, error } = await supabase
-    .from('scan_history')
-    .select('id, jan_code, item_name, official_price, price_source, store_name, store_price, scanned_at')
-    .order('scanned_at', { ascending: false })
+  const { data, error } = await supabase.from('scan_history').select(SELECT_COLUMNS).order('scanned_at', { ascending: false })
 
   if (error) {
     console.error('スキャン履歴の取得に失敗:', error)
@@ -87,7 +120,21 @@ export async function fetchScanHistory(): Promise<ScanHistoryEntry[]> {
   return ((data ?? []) as ScanHistoryRow[]).map(mapRow)
 }
 
-// スキャン結果画面・履歴一覧の両方から呼ぶ（クライアントコンポーネント用）。
+// クライアントコンポーネント（履歴詳細画面）から呼ぶ
+export async function fetchScanHistoryEntry(id: string): Promise<ScanHistoryEntry | null> {
+  const supabase = createBrowserClient()
+  if (!supabase) return null
+
+  const { data, error } = await supabase.from('scan_history').select(SELECT_COLUMNS).eq('id', id).maybeSingle()
+
+  if (error) {
+    console.error('スキャン履歴の取得に失敗:', error)
+    return null
+  }
+  return data ? mapRow(data as ScanHistoryRow) : null
+}
+
+// スキャン結果画面・履歴詳細画面の両方から呼ぶ（クライアントコンポーネント用）。
 // storePriceにnullを渡すと未入力状態に戻せる
 export async function updateStorePrice(id: string, storePrice: number | null): Promise<boolean> {
   const supabase = createBrowserClient()
