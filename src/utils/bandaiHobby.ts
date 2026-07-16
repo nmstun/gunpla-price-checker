@@ -7,6 +7,15 @@ const PRODUCT_FETCH_TIMEOUT_MS = 15000
 const SEARCH_RESULT_LIMIT = 30
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
 
+// バンダイの検索サイトは、トークン発行ページで Accept-Language ヘッダーの有無を
+// ボット判定に使っており、これが無いリクエストには「見た目は正しいが検索APIに
+// 弾かれる無効なトークン」を返す（→商品検索APIが statusCode:404 を返す）ことが
+// 実測で判明した。ブラウザは必ず送るヘッダーなので、全リクエストで明示的に付与する
+const BANDAI_HEADERS = {
+  'User-Agent': USER_AGENT,
+  'Accept-Language': 'ja,en-US;q=0.9,en;q=0.8',
+}
+
 interface BandaiProduct {
   title: string
   price: number
@@ -30,7 +39,7 @@ async function fetchWithTimeout(url: string, timeoutMs: number, init?: RequestIn
 async function resolveCanonicalNameByJanCode(janCode: string): Promise<string | null> {
   try {
     const res = await fetchWithTimeout(`${MANUAL_SEARCH_URL}?freeword=${janCode}`, TOKEN_FETCH_TIMEOUT_MS, {
-      headers: { 'User-Agent': USER_AGENT },
+      headers: BANDAI_HEADERS,
       cache: 'no-store',
     })
     if (!res.ok) return null
@@ -52,7 +61,7 @@ async function resolveCanonicalNameByJanCode(janCode: string): Promise<string | 
 async function fetchSearchToken(keyword: string): Promise<string | null> {
   const url = `${SEARCH_PAGE_URL}?title=${encodeURIComponent(keyword)}&product=on`
   const res = await fetchWithTimeout(url, TOKEN_FETCH_TIMEOUT_MS, {
-    headers: { 'User-Agent': USER_AGENT },
+    headers: BANDAI_HEADERS,
     cache: 'no-store',
   })
   if (!res.ok) return null
@@ -133,7 +142,7 @@ async function runBandaiSearch(keyword: string): Promise<BandaiProduct[]> {
   })
 
   const res = await fetchWithTimeout(`${PRODUCT_LIST_API}?${params.toString()}`, PRODUCT_FETCH_TIMEOUT_MS, {
-    headers: { 'User-Agent': USER_AGENT, Referer: 'https://bandai-hobby.net/' },
+    headers: { ...BANDAI_HEADERS, Referer: 'https://bandai-hobby.net/' },
     cache: 'no-store',
   })
   if (!res.ok) return []
