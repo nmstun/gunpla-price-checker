@@ -12,7 +12,8 @@ export default function HistoryDetailPage() {
   const [loading, setLoading] = useState(true);
 
   const [priceInput, setPriceInput] = useState("");
-  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "error">("idle");
+  const [isEditingStorePrice, setIsEditingStorePrice] = useState(false);
 
   const [refreshing, setRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
@@ -59,6 +60,18 @@ export default function HistoryDetailPage() {
     };
   }, [params.id]);
 
+  const handleStartEditStorePrice = () => {
+    if (!entry) return;
+    setPriceInput(entry.storePrice?.toString() ?? "");
+    setSaveStatus("idle");
+    setIsEditingStorePrice(true);
+  };
+
+  const handleCancelEditStorePrice = () => {
+    setSaveStatus("idle");
+    setIsEditingStorePrice(false);
+  };
+
   const handleSaveStorePrice = async () => {
     if (!entry) return;
     const trimmed = priceInput.trim();
@@ -71,7 +84,8 @@ export default function HistoryDetailPage() {
     const ok = await updateStorePrice(entry.id, price);
     if (ok) {
       setEntry({ ...entry, storePrice: price });
-      setSaveStatus("saved");
+      setSaveStatus("idle");
+      setIsEditingStorePrice(false);
     } else {
       setSaveStatus("error");
     }
@@ -196,37 +210,71 @@ export default function HistoryDetailPage() {
                 )}
               </div>
 
-              {/* 店舗価格（任意・編集可） */}
+              {/* 店舗価格（任意・編集可）。普段は他の2行と同じ「ラベル→大きな値」の
+                  表示のみで、「編集」ボタンを押したときだけ入力欄に切り替える */}
               <div className="p-4 bg-gray-50">
-                <label className="text-xs text-gray-500 font-medium block">この店舗での価格（任意）</label>
-                <div className="flex gap-2 mt-1">
-                  <div className="flex-1 relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xl pointer-events-none">
-                      ¥
-                    </span>
-                    <input
-                      type="number"
-                      inputMode="numeric"
-                      value={priceInput}
-                      onChange={(e) => {
-                        setPriceInput(e.target.value);
-                        setSaveStatus("idle");
-                      }}
-                      placeholder="例: 6800"
-                      className="w-full text-2xl font-black text-gray-900 pl-8 pr-3 py-1.5 rounded-lg border border-gray-200 bg-white focus:outline-none focus:border-blue-400"
-                    />
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <span className="text-xs text-gray-500 font-medium block">この店舗での価格（任意）</span>
+                    {!isEditingStorePrice && (
+                      entry.storePrice !== null ? (
+                        <span className="text-2xl font-black text-gray-900 mt-1 block">
+                          ¥{entry.storePrice.toLocaleString()}
+                        </span>
+                      ) : (
+                        <span className="text-sm text-gray-400 mt-1 block">未入力</span>
+                      )
+                    )}
                   </div>
-                  <button
-                    onClick={handleSaveStorePrice}
-                    disabled={saveStatus === "saving"}
-                    className="shrink-0 self-center text-sm font-bold px-4 py-2 rounded-lg bg-white border border-gray-200 text-gray-600 active:bg-gray-100 transition disabled:opacity-50"
-                  >
-                    保存
-                  </button>
+                  {!isEditingStorePrice && (
+                    <button
+                      onClick={handleStartEditStorePrice}
+                      className="shrink-0 text-xs font-bold px-2 py-1 rounded-full bg-gray-200 text-gray-600 active:bg-gray-300 transition whitespace-nowrap"
+                    >
+                      編集
+                    </button>
+                  )}
                 </div>
-                {saveStatus === "saved" && <p className="text-[11px] text-green-600 mt-1.5">保存しました</p>}
-                {saveStatus === "error" && (
-                  <p className="text-[11px] text-red-600 mt-1.5">保存に失敗しました。もう一度お試しください</p>
+
+                {isEditingStorePrice && (
+                  <div className="mt-1">
+                    <div className="flex gap-2">
+                      <div className="flex-1 relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xl pointer-events-none">
+                          ¥
+                        </span>
+                        <input
+                          type="number"
+                          inputMode="numeric"
+                          autoFocus
+                          value={priceInput}
+                          onChange={(e) => {
+                            setPriceInput(e.target.value);
+                            setSaveStatus("idle");
+                          }}
+                          placeholder="例: 6800"
+                          className="w-full text-2xl font-black text-gray-900 pl-8 pr-3 py-1.5 rounded-lg border border-gray-200 bg-white focus:outline-none focus:border-blue-400"
+                        />
+                      </div>
+                      <button
+                        onClick={handleSaveStorePrice}
+                        disabled={saveStatus === "saving"}
+                        className="shrink-0 self-center text-sm font-bold px-4 py-2 rounded-lg bg-white border border-gray-200 text-gray-600 active:bg-gray-100 transition disabled:opacity-50"
+                      >
+                        保存
+                      </button>
+                      <button
+                        onClick={handleCancelEditStorePrice}
+                        disabled={saveStatus === "saving"}
+                        className="shrink-0 self-center text-sm font-bold px-3 py-2 rounded-lg text-gray-400 active:bg-gray-100 transition disabled:opacity-50"
+                      >
+                        取消
+                      </button>
+                    </div>
+                    {saveStatus === "error" && (
+                      <p className="text-[11px] text-red-600 mt-1.5">保存に失敗しました。もう一度お試しください</p>
+                    )}
+                  </div>
                 )}
               </div>
             </div>
