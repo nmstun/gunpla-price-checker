@@ -13,7 +13,8 @@ export interface YahooHit {
   name: string
   price: number | string
   url?: string
-  seller?: { id?: string; name?: string }
+  // Yahoo!ショッピングAPIのレスポンスではセラーIDのキー名は`sellerId`（`id`ではない）
+  seller?: { sellerId?: string; name?: string }
   shipping?: { name?: string; code?: number | string }
   priceLabel?: { fixedPrice?: number | string }
 }
@@ -49,15 +50,15 @@ export async function fetchYahooHits(janCode: string, clientId: string): Promise
 
 // 信頼ストアの登録名を最優先の基準名とし、無ければ怪しい出品を避けつつ先頭のヒットを使う
 export function pickBaseItemName(hits: YahooHit[]): string {
-  const trustedHit = hits.find((hit) => hit.seller?.id && TRUSTED_STORE_IDS.includes(hit.seller.id))
+  const trustedHit = hits.find((hit) => hit.seller?.sellerId && TRUSTED_STORE_IDS.includes(hit.seller.sellerId))
   if (trustedHit) return trustedHit.name
 
-  const safeHit = hits.find((hit) => !hit.seller?.id?.includes('ensyu') && !hit.name.includes('ケース'))
+  const safeHit = hits.find((hit) => !hit.seller?.sellerId?.includes('ensyu') && !hit.name.includes('ケース'))
   return (safeHit ?? hits[0]).name
 }
 
 export function isExcludedHit(hit: YahooHit): boolean {
-  if (hit.seller?.id === EXCLUDED_SELLER_ID || hit.url?.includes(EXCLUDED_SELLER_ID)) return true
+  if (hit.seller?.sellerId === EXCLUDED_SELLER_ID || hit.url?.includes(EXCLUDED_SELLER_ID)) return true
   return EXCLUDED_NAME_KEYWORDS.some((keyword) => hit.name.includes(keyword))
 }
 
@@ -75,7 +76,7 @@ export function toOffer(hit: YahooHit): Offer {
     shippingFee,
     isConditional: shippingName.includes('条件') || hit.shipping?.code === 1 || hit.shipping?.code === '1',
     url: hit.url || '#',
-    storeId: hit.seller?.id || '',
+    storeId: hit.seller?.sellerId || '',
     fixedPrice: hit.priceLabel?.fixedPrice ? Number(hit.priceLabel.fixedPrice) : 0,
   }
 }
