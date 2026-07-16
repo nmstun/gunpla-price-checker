@@ -56,8 +56,11 @@ async function fetchSearchTokenWithRetry(keyword: string): Promise<string | null
 // バンダイ側の検索は単純な部分一致らしく、スペースや"/"（スケール表記の1/144等）を含めると
 // フィルタが無視されて全件が返ってくることが実測で分かった。空白なしの連続文字列にして渡す。
 // さらに、キーワードの先頭が"HG"等のグレード表記だと（おそらくブランドコードとして誤解釈され）
-// 404が返るようになったことも実測で確認した。グレード表記は検索精度にも不要なので先頭から除去する
-const GRADE_PREFIX_PATTERN = /^(HG|RG|MG|PG|SD|EG|FM)/i
+// 404が返るようになったことも実測で確認した。グレード表記は検索精度にも不要なので先頭から除去する。
+// "HGUC"等の複合表記は、サブブランドの2〜3文字（UC/CE/IBO等）を先に含めて丸ごと一致させないと
+// "HG"だけ除去した残りの"UC"が後続の型式番号（RGM-79G等）にくっついてしまい、型式番号除去
+// フォールバック（下記）が正しく機能しなくなるため、長い表記を優先して判定する
+const GRADE_PREFIX_PATTERN = /^(HGUC|HGCE|HGIBO|HGBF|HGBD|HGBM|HGAC|HGCC|HGBC|HGEX|MGEX|MGKA|MGSD|HG|RG|MG|PG|SD|EG|FM)/i
 
 function toBandaiSearchKeyword(name: string): string {
   const cleaned = name.replace(/\d+\/\d+/g, '').replace(/[\s/]/g, '')
@@ -67,8 +70,10 @@ function toBandaiSearchKeyword(name: string): string {
 // "MSZ-010"や"RGM-89De"のような型式番号。バンダイ側の実際の商品名に型式番号が
 // 含まれていない場合、キーワードに残したままだと部分一致せず0件になることが実測でわかった。
 // （逆に型式番号込みで一致するケースもあるため、まず型式番号込みで検索し、0件のときだけ
-// 型式番号を除いて再検索するフォールバックにしている）
-const MODEL_CODE_PATTERN = /[A-Za-z]{1,4}-[A-Za-z0-9]+/g
+// 型式番号を除いて再検索するフォールバックにしている）。
+// 直前の文字がアルファベットの場合はマッチさせない（グレード表記の除去し残しを型式番号の
+// 一部として巻き込んでしまう事故を防ぐため）
+const MODEL_CODE_PATTERN = /(?<![A-Za-z])[A-Za-z]{1,4}-[A-Za-z0-9]+/g
 
 function stripModelCode(keyword: string): string {
   return keyword.replace(MODEL_CODE_PATTERN, '')
