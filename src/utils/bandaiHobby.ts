@@ -48,8 +48,7 @@ async function resolveCanonicalNameByJanCode(janCode: string): Promise<string | 
 
 // bandai-hobby.netの検索結果ページに埋め込まれたAPIトークンを取得する。
 // 公式に公開されたAPIではなく、サイトのフロントエンドが内部的に叩いているものを流用しているため、
-// サイト側の実装変更で壊れる可能性がある（その場合はfindOfficialPriceByJanCodeがnullを返し、
-// 呼び出し側は既存の目安価格ロジックにフォールバックする）
+// サイト側の実装変更で壊れる可能性がある（その場合はfindOfficialPriceByJanCodeがofficialPrice: nullを返す）
 async function fetchSearchToken(keyword: string): Promise<string | null> {
   const url = `${SEARCH_PAGE_URL}?title=${encodeURIComponent(keyword)}&product=on`
   const res = await fetchWithTimeout(url, TOKEN_FETCH_TIMEOUT_MS, {
@@ -177,6 +176,13 @@ function findMatch(products: BandaiProduct[], janCode: string, canonicalName: st
   return nameMatched.length === 1 ? nameMatched[0].price : null
 }
 
+export interface BandaiPriceLookupResult {
+  officialPrice: number | null
+  // 説明書サイトでJANコードから引けた正式な商品名。取得できた場合、
+  // Yahoo!出品者由来の商品名より正確なため表示名としても優先的に使う
+  canonicalName: string | null
+}
+
 // 商品名で検索し、実際にスキャンしたJANコードと一致する商品が見つかれば
 // バンダイ公式の希望小売価格を返す。
 // まず説明書サイトでJANコードから正式な商品名を引けた場合はそちらを優先して使い
@@ -185,12 +191,12 @@ function findMatch(products: BandaiProduct[], janCode: string, canonicalName: st
 // JAN完全一致が見つからない場合は商品名の完全一致（表記ゆれ吸収後）にフォールバックするが、
 // 一意に一件へ絞れないとき（カラバリ・Ver.違い等、価格が異なる別商品の可能性があるとき）は
 // 採用せずnullを返す
-export async function findOfficialPriceByJanCode(keyword: string, janCode: string): Promise<number | null> {
+export async function findOfficialPriceByJanCode(keyword: string, janCode: string): Promise<BandaiPriceLookupResult> {
   const canonicalName = await resolveCanonicalNameByJanCode(janCode)
   const nameForSearch = canonicalName ?? keyword
 
   const baseKeyword = toBandaiSearchKeyword(nameForSearch)
-  if (!baseKeyword) return null
+  if (!baseKeyword) return { officialPrice: null, canonicalName }
 
   const keywordTiers = [baseKeyword]
   const withoutModelCode = stripModelCode(baseKeyword)
@@ -202,8 +208,8 @@ export async function findOfficialPriceByJanCode(keyword: string, janCode: strin
     const products = await runBandaiSearch(tier)
     if (products.length === 0) continue
     const price = findMatch(products, janCode, nameForSearch)
-    if (price !== null) return price
+    if (price !== null) return { officialPrice: price, canonicalName }
   }
 
-  return null
+  return { officialPrice: null, canonicalName }
 }

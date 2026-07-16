@@ -52,11 +52,16 @@ export async function fetchLivePriceInfo(janCode: string): Promise<PriceLookupRe
   // 確認できない場合は量販店の実売価格を定価として代用せず、nullのまま返す
   // （最安値は別途topOffersからいつでも都度取得できるため、フォールバックとして混ぜる必要がない）
   let officialPrice: number | null = null
+  // 表示名も、Yahoo!出品者由来の商品名（表記ゆれ・ノイズが多い）より、
+  // バンダイ説明書サイトで確認できた正式名称の方が正確なので優先して使う
+  let itemName = cleanedBaseName
   try {
-    officialPrice = await findOfficialPriceByJanCode(cleanedBaseName, janCode)
+    const result = await findOfficialPriceByJanCode(cleanedBaseName, janCode)
+    officialPrice = result.officialPrice
+    if (result.canonicalName) itemName = result.canonicalName
   } catch (bandaiError) {
     console.error('バンダイ公式価格の取得に失敗:', bandaiError)
   }
 
-  return { itemName: cleanedBaseName, officialPrice, offers: topOffers }
+  return { itemName, officialPrice, offers: topOffers }
 }
