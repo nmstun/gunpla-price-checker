@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { fetchScanHistory, deleteScanHistoryEntry } from "@/lib/supabase/scanHistory";
+import { useSelectedStore } from "@/hooks/useSelectedStore";
 import { ScanHistoryEntry } from "@/types";
 
 const DELETE_WIDTH = 88;
@@ -178,7 +179,10 @@ function SwipeableHistoryRow({
 export default function HistoryPage() {
   const [entries, setEntries] = useState<ScanHistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedStore, setSelectedStore] = useState<string>("すべて");
+  // スキャン画面の「読取り店舗」選択と同じ永続化ストアを共有する。
+  // 「すべて」はどの店舗も選ばれていない状態（＝共有値がnull）として扱う
+  const { selectedStore: sharedStore, setSelectedStore: setSharedStore } = useSelectedStore();
+  const selectedStore = sharedStore ?? "すべて";
 
   useEffect(() => {
     fetchScanHistory()
@@ -231,7 +235,7 @@ export default function HistoryPage() {
             {stores.map((store) => (
               <button
                 key={store}
-                onClick={() => setSelectedStore(store)}
+                onClick={() => setSharedStore(store === "すべて" ? null : store)}
                 className={`text-sm font-bold px-3.5 py-2 rounded-full border transition ${selectedStore === store
                   ? "bg-blue-600 border-blue-600 text-white"
                   : "bg-white border-gray-200 text-gray-600 active:border-blue-300"
