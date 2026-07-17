@@ -28,6 +28,7 @@ export async function POST(request: Request) {
         itemName: cached.itemName,
         officialPrice: cached.officialPrice,
         storeName: store,
+        isPremiumBandaiExclusive: cached.isPremiumBandaiExclusive,
       })
       const result: CheckPriceResult = {
         source: 'cache',
@@ -35,6 +36,7 @@ export async function POST(request: Request) {
         officialPrice: cached.officialPrice,
         offers: [],
         scanHistoryId,
+        isPremiumBandaiExclusive: cached.isPremiumBandaiExclusive,
       }
       return NextResponse.json(result)
     }
@@ -47,7 +49,7 @@ export async function POST(request: Request) {
     // バンダイ公式で確認できた場合のみキャッシュする（未確認のまま24時間キャッシュすると
     // その間ずっと再確認できなくなるため）
     if (lookup.officialPrice !== null) {
-      await saveItem(janCode, lookup.itemName, lookup.officialPrice)
+      await saveItem(janCode, lookup.itemName, lookup.officialPrice, lookup.isPremiumBandaiExclusive)
     }
 
     const scanHistoryId = await saveScanHistory({
@@ -55,6 +57,7 @@ export async function POST(request: Request) {
       itemName: lookup.itemName,
       officialPrice: lookup.officialPrice,
       storeName: store,
+      isPremiumBandaiExclusive: lookup.isPremiumBandaiExclusive,
     })
 
     const result: CheckPriceResult = {
@@ -63,6 +66,7 @@ export async function POST(request: Request) {
       officialPrice: lookup.officialPrice,
       offers: lookup.offers,
       scanHistoryId,
+      isPremiumBandaiExclusive: lookup.isPremiumBandaiExclusive,
     }
     return NextResponse.json(result)
   } catch (error) {

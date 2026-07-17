@@ -145,6 +145,7 @@ export default function HistoryDetailPage() {
       setEntry({
         ...entry,
         itemName: refreshed.itemName,
+        isPremiumBandaiExclusive: refreshed.isPremiumBandaiExclusive,
         // 公式定価を取得できたときだけ上書きし手動フラグを下ろす。取得できなかった（null）
         // 場合はユーザーの手動入力値を空振りで消さないよう、既存の定価をそのまま維持する
         ...(refreshed.officialPrice !== null
@@ -202,7 +203,14 @@ export default function HistoryDetailPage() {
                   {entry.storeName}
                 </span>
               </div>
-              <h2 className="text-lg font-bold text-gray-800 mt-1.5 leading-snug">{entry.itemName}</h2>
+              <div className="flex items-start gap-1.5 mt-1.5">
+                <h2 className="text-lg font-bold text-gray-800 leading-snug">{entry.itemName}</h2>
+                {entry.isPremiumBandaiExclusive && (
+                  <span className="shrink-0 mt-0.5 text-[11px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 whitespace-nowrap">
+                    プレバン限定
+                  </span>
+                )}
+              </div>
               <p className="text-xs text-gray-400 mt-1">JAN: {entry.janCode}</p>
             </div>
 

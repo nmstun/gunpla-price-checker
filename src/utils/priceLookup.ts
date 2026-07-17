@@ -1,5 +1,5 @@
 import { Offer } from '@/types'
-import { cleanItemName, isNameMatching } from './itemName'
+import { cleanItemName, isNameMatching, hasPremiumBandaiMarker } from './itemName'
 import { fetchYahooHits, pickBaseItemName, isExcludedHit, toOffer } from './yahooShopping'
 import { findOfficialPriceByJanCode } from './bandaiHobby'
 
@@ -10,6 +10,10 @@ export interface PriceLookupResult {
   // バンダイ公式サイトでJANコード照合できた場合のみ値が入る。確認できなければnull
   officialPrice: number | null
   offers: Offer[]
+  // Yahoo!出品名にプレミアムバンダイ（プレバン）限定を示す目印があったかどうか。
+  // プレバン限定品は説明書サイトの索引に無いことが多く定価が未確認になりやすいため、
+  // UI側でその理由をユーザーに伝えるために使う
+  isPremiumBandaiExclusive: boolean
 }
 
 export interface PriceLookupError {
@@ -40,6 +44,7 @@ export async function fetchLivePriceInfo(janCode: string): Promise<PriceLookupRe
   }
 
   const cleanedBaseName = cleanItemName(pickBaseItemName(hits))
+  const isPremiumBandaiExclusive = hasPremiumBandaiMarker(hits.map((hit) => hit.name))
 
   const matchedHits = hits.filter((hit) => !isExcludedHit(hit) && isNameMatching(cleanedBaseName, hit.name))
   if (matchedHits.length === 0) {
@@ -63,5 +68,5 @@ export async function fetchLivePriceInfo(janCode: string): Promise<PriceLookupRe
     console.error('バンダイ公式価格の取得に失敗:', bandaiError)
   }
 
-  return { itemName, officialPrice, offers: topOffers }
+  return { itemName, officialPrice, offers: topOffers, isPremiumBandaiExclusive }
 }

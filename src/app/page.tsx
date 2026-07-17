@@ -305,9 +305,16 @@ export default function Home() {
           <div className="space-y-5 animate-fadeIn">
             {/* 商品名 */}
             <div className="border-t border-gray-100 pt-4">
-              <span className="text-xs font-semibold uppercase tracking-wider px-2 py-0.5 rounded bg-gray-100 text-gray-600">
-                検証済み商品名
-              </span>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-xs font-semibold uppercase tracking-wider px-2 py-0.5 rounded bg-gray-100 text-gray-600">
+                  検証済み商品名
+                </span>
+                {result.isPremiumBandaiExclusive && (
+                  <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">
+                    プレバン限定
+                  </span>
+                )}
+              </div>
               <h2 className="text-lg font-bold text-gray-800 mt-1.5 leading-snug">
                 {result.itemName}
               </h2>

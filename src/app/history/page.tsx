@@ -163,7 +163,14 @@ function SwipeableHistoryRow({
           </div>
           <span className="text-gray-300 shrink-0">›</span>
         </div>
-        <p className="text-sm font-bold text-gray-800 leading-snug mt-1">{entry.itemName}</p>
+        <div className="flex items-start gap-1.5 mt-1">
+          <p className="text-sm font-bold text-gray-800 leading-snug">{entry.itemName}</p>
+          {entry.isPremiumBandaiExclusive && (
+            <span className="shrink-0 mt-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-700 whitespace-nowrap">
+              プレバン限定
+            </span>
+          )}
+        </div>
         <div className="mt-1.5">
           <PriceSummary
             officialPrice={entry.officialPrice}

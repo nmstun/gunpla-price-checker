@@ -7,6 +7,7 @@ interface SaveScanHistoryInput {
   itemName: string
   officialPrice: number | null
   storeName: string
+  isPremiumBandaiExclusive: boolean
 }
 
 // APIルート（サーバー）から呼ぶ。storeNameが空なら店舗未選択のスキャンとして記録しない。
@@ -27,6 +28,7 @@ export async function saveScanHistory(input: SaveScanHistoryInput): Promise<stri
           item_name: input.itemName,
           official_price: input.officialPrice,
           store_name: storeName,
+          is_premium_bandai_exclusive: input.isPremiumBandaiExclusive,
         },
       ])
       .select('id')
@@ -46,18 +48,22 @@ export async function saveScanHistory(input: SaveScanHistoryInput): Promise<stri
 interface RefreshScanHistoryInput {
   itemName: string
   officialPrice: number | null
+  isPremiumBandaiExclusive: boolean
 }
 
 // 定価再取得APIルート（サーバー）から呼ぶ。既存の履歴行を最新の定価情報で上書きする。
 // 最安値は都度取得の値なので保存しない（呼び出し元がレスポンスとして表示するだけ）。
 // 公式定価を取得できた場合のみofficial_priceを更新し手動フラグを下ろす。
 // 取得できなかった（null）場合はofficial_priceを触らない＝ユーザーの手動入力値を
-// 再取得の空振りで消してしまわないようにする（商品名だけは更新する）
+// 再取得の空振りで消してしまわないようにする（商品名・プレバン限定判定は都度更新する）
 export async function refreshScanHistoryPrice(id: string, input: RefreshScanHistoryInput): Promise<boolean> {
   const supabase = createServerClient()
   if (!supabase) return false
 
-  const update: Record<string, unknown> = { item_name: input.itemName }
+  const update: Record<string, unknown> = {
+    item_name: input.itemName,
+    is_premium_bandai_exclusive: input.isPremiumBandaiExclusive,
+  }
   if (input.officialPrice !== null) {
     update.official_price = input.officialPrice
     update.official_price_is_manual = false
@@ -78,13 +84,14 @@ interface ScanHistoryRow {
   item_name: string
   official_price: number | null
   official_price_is_manual: boolean
+  is_premium_bandai_exclusive: boolean
   store_name: string
   store_price: number | null
   scanned_at: string
 }
 
 const SELECT_COLUMNS =
-  'id, jan_code, item_name, official_price, official_price_is_manual, store_name, store_price, scanned_at'
+  'id, jan_code, item_name, official_price, official_price_is_manual, is_premium_bandai_exclusive, store_name, store_price, scanned_at'
 
 function mapRow(row: ScanHistoryRow): ScanHistoryEntry {
   return {
@@ -93,6 +100,7 @@ function mapRow(row: ScanHistoryRow): ScanHistoryEntry {
     itemName: row.item_name,
     officialPrice: row.official_price === null ? null : Number(row.official_price),
     officialPriceIsManual: row.official_price_is_manual ?? false,
+    isPremiumBandaiExclusive: row.is_premium_bandai_exclusive ?? false,
     storeName: row.store_name,
     storePrice: row.store_price,
     scannedAt: row.scanned_at,

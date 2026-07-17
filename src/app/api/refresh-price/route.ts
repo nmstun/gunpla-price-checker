@@ -36,11 +36,12 @@ export async function POST(request: Request) {
 
     if (shouldPersist) {
       if (lookup.officialPrice !== null) {
-        await saveItem(janCode, lookup.itemName, lookup.officialPrice)
+        await saveItem(janCode, lookup.itemName, lookup.officialPrice, lookup.isPremiumBandaiExclusive)
       }
       const ok = await refreshScanHistoryPrice(scanHistoryId, {
         itemName: lookup.itemName,
         officialPrice: lookup.officialPrice,
+        isPremiumBandaiExclusive: lookup.isPremiumBandaiExclusive,
       })
       if (!ok) {
         return NextResponse.json({ error: '履歴の更新に失敗しました' }, { status: 500 })
@@ -51,6 +52,7 @@ export async function POST(request: Request) {
       itemName: lookup.itemName,
       officialPrice: lookup.officialPrice,
       lowestMarketPrice,
+      isPremiumBandaiExclusive: lookup.isPremiumBandaiExclusive,
     }
     return NextResponse.json(result)
   } catch (error) {
