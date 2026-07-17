@@ -5,6 +5,7 @@ import Link from "next/link";
 import { BrowserMultiFormatReader, Result, Exception } from "@zxing/library";
 import { useCheckPrice } from "@/hooks/useCheckPrice";
 import { useFavoriteStores } from "@/hooks/useFavoriteStores";
+import { useSelectedStore } from "@/hooks/useSelectedStore";
 import { updateStorePrice } from "@/lib/supabase/scanHistory";
 
 // スキャンごとにkey={scanHistoryId}で再マウントさせ、入力状態を自然にリセットする
@@ -65,8 +66,9 @@ export default function Home() {
   const { result, loading, error, checkPrice, reset } = useCheckPrice();
   const { stores, addStore, removeStore } = useFavoriteStores();
 
-  // 読取り店舗の選択状態
-  const [selectedStore, setSelectedStore] = useState<string | null>(null);
+  // 読取り店舗の選択状態。スキャン画面⇔履歴画面の行き来で選び直さずに済むよう
+  // localStorageに永続化する（画面遷移のたびにコンポーネントは作り直されるため）
+  const { selectedStore, setSelectedStore } = useSelectedStore();
   const [newStoreName, setNewStoreName] = useState("");
 
   const handleAddStore = () => {

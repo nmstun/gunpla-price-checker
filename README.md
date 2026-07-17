@@ -40,6 +40,7 @@ Deployment Platform: Vercel
 
 - 初期状態では店舗は1件も登録されていません。自由入力で店舗名を追加すると選択肢に加わり、ブラウザの`localStorage`に保存されて次回以降も選択肢に表示されます（サーバー側には保存されないため、端末・ブラウザごとに独立します）
 - 誤って登録した店舗は、チップ右側の「×」から削除できます（選択中の店舗を削除すると選択状態も解除されます）
+- 選択中の店舗も`localStorage`に保存されるため、履歴画面など他の画面に移動してスキャン画面に戻ってきても選び直す必要はありません（[useSelectedStore.ts](src/hooks/useSelectedStore.ts)）
 - 選択した店舗名は、スキャン結果（JANコード・商品名・価格情報）とあわせて`scan_history`テーブルに記録されます。キャッシュ経由で価格が返ってきた場合も、スキャンの記録自体は毎回残ります
 - [`/history`](src/app/history/page.tsx) 一覧ページは日付・店舗・商品名（全文表示、省略なし）のコンパクトな行で表示され、店舗でフィルタできます。定価・店舗価格の両方が分かっている行は差額（店舗価格－定価）もあわせて表示します（プラスなら定価より高い＝プレ値の目安として赤、マイナスなら緑）。行をタップすると [`/history/[id]`](src/app/history/%5Bid%5D/page.tsx) の詳細画面に遷移します
 - 各行は左にスワイプすると「削除」ボタンが現れ、その場で削除できます（重複スキャンや不要な履歴の整理用）
@@ -93,7 +94,8 @@ src/
 │   └── page.tsx                  # バーコードスキャンUI（店舗選択＋useCheckPriceフック経由）
 ├── hooks/
 │   ├── useCheckPrice.ts          # 価格チェックAPI呼び出し用フック
-│   └── useFavoriteStores.ts      # 読取り店舗のお気に入り一覧（localStorage永続化）
+│   ├── useFavoriteStores.ts      # 読取り店舗のお気に入り一覧（localStorage永続化）
+│   └── useSelectedStore.ts       # 選択中の読取り店舗（localStorage永続化、画面遷移をまたいで保持）
 ├── lib/supabase/
 │   ├── server.ts                 # APIルート専用Supabaseクライアント（env未設定ならnullを返す）
 │   ├── client.ts                 # クライアントコンポーネント用Supabaseクライアント
