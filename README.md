@@ -113,6 +113,9 @@ supabase/
 └── migrations/                   # items / scan_history テーブルのスキーマ
 ```
 
+🔄 依存関係の更新
+Renovate（`renovate.json`）により、依存パッケージの更新PRが週次で自動作成されます（実際に動かすにはGitHub Appとして[Renovate](https://github.com/apps/renovate)を本リポジトリにインストールしてください）。lockfile（`package-lock.json`）によりインストールされるバージョンは常に固定されているため、PRを確認してからマージする運用です。
+
 🌐 Vercel への本番デプロイ手順
 Next.jsと最も相性が良い Vercel へデプロイする手順です。サーバーレス関数（API）も自動的にセットアップされます。
 
