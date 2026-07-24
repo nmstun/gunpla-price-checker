@@ -7,7 +7,7 @@ import { BrowserMultiFormatReader, Result, Exception } from "@zxing/library";
 import { useCheckPrice } from "@/hooks/useCheckPrice";
 import { useFavoriteStores } from "@/hooks/useFavoriteStores";
 import { useSelectedStore } from "@/hooks/useSelectedStore";
-import { updateStorePrice } from "@/lib/supabase/scanHistory";
+import { updateStorePrice, fetchScanHistory } from "@/lib/supabase/scanHistory";
 import { KitSearchResultItem } from "@/types";
 
 // スキャンごとにkey={scanHistoryId}で再マウントさせ、入力状態を自然にリセットする
@@ -189,6 +189,20 @@ export default function Home() {
   const { selectedStore, setSelectedStore } = useSelectedStore();
   const [newStoreName, setNewStoreName] = useState("");
 
+  // お気に入り登録（localStorage、端末ごと）に加えて、スキャン履歴（Supabase、共有）に
+  // 記録済みの店舗名も候補に加える。別端末・別ブラウザで使った店舗名や、
+  // localStorageが消えた場合でも過去に使った店舗名を選び直せるようにするため
+  const [historyStoreNames, setHistoryStoreNames] = useState<string[]>([]);
+  useEffect(() => {
+    fetchScanHistory().then((entries) => {
+      setHistoryStoreNames(Array.from(new Set(entries.map((e) => e.storeName))));
+    });
+  }, []);
+
+  const storeNames = Array.from(
+    new Set([...stores.map((s) => s.name), ...historyStoreNames])
+  ).sort((a, b) => a.localeCompare(b, "ja"));
+
   const handleAddStore = () => {
     const trimmed = newStoreName.trim();
     if (!trimmed) return;
@@ -301,7 +315,7 @@ export default function Home() {
               店舗管理（住所・地図）
             </Link>
           </div>
-          {stores.length > 0 ? (
+          {storeNames.length > 0 ? (
             <div className="flex gap-2">
               <select
                 value={selectedStore ?? ""}
@@ -311,13 +325,13 @@ export default function Home() {
                 <option value="" disabled>
                   店舗を選択してください
                 </option>
-                {stores.map((store) => (
-                  <option key={store.name} value={store.name}>
-                    {store.name}
+                {storeNames.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
                   </option>
                 ))}
               </select>
-              {selectedStore && (
+              {selectedStore && stores.some((s) => s.name === selectedStore) && (
                 <button
                   onClick={() => handleRemoveStore(selectedStore)}
                   aria-label={`${selectedStore}を削除`}
