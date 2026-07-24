@@ -51,7 +51,15 @@ export async function fetchLivePriceInfo(janCode: string): Promise<PriceLookupRe
     return { error: '正しい商品データが確認できませんでした', status: 404 }
   }
 
-  const topOffers = matchedHits.map(toOffer).sort((a, b) => a.price - b.price).slice(0, 3)
+  // 最安値・上位オファーには在庫無しの出品を含めない（買えない価格を最安値として
+  // 案内しても意味が無いため）。ただし商品データの照合自体（matchedHits）には
+  // 在庫無しの出品も含めたままにする。出品名が消えるわけではなく、商品を正しく
+  // 特定できたかどうかの判定材料としては在庫の有無と関係なく有効なため
+  const topOffers = matchedHits
+    .filter((hit) => hit.inStock !== false)
+    .map(toOffer)
+    .sort((a, b) => a.price - b.price)
+    .slice(0, 3)
 
   // メーカー希望小売価格はバンダイ公式サイトでJANコード照合できた場合のみ採用する。
   // 確認できない場合は量販店の実売価格を定価として代用せず、nullのまま返す

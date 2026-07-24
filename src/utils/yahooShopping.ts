@@ -17,6 +17,9 @@ export interface YahooHit {
   seller?: { sellerId?: string; name?: string }
   shipping?: { name?: string; code?: number | string }
   priceLabel?: { fixedPrice?: number | string }
+  // 在庫の有無（実測でtrue/falseどちらも返ってくることを確認済み）。
+  // フィールド自体が無い場合は判定できないため、除外せず含める側に倒す
+  inStock?: boolean
 }
 
 interface YahooItemSearchResponse {

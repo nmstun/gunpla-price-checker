@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { fetchScanHistory, deleteScanHistoryEntry } from "@/lib/supabase/scanHistory";
 import { useSelectedStore } from "@/hooks/useSelectedStore";
+import { detectGrade } from "@/utils/grade";
 import { ScanHistoryEntry } from "@/types";
 
 const DELETE_WIDTH = 88;
@@ -190,6 +191,9 @@ export default function HistoryPage() {
   // 「すべて」はどの店舗も選ばれていない状態（＝共有値がnull）として扱う
   const { selectedStore: sharedStore, setSelectedStore: setSharedStore } = useSelectedStore();
   const selectedStore = sharedStore ?? "すべて";
+  // グレード（HG/RG/MG等）の絞り込みは店舗選択と違い他画面と共有する意味が無いため、
+  // この画面だけのローカルstateにする
+  const [selectedGrade, setSelectedGrade] = useState("すべて");
 
   useEffect(() => {
     fetchScanHistory()
@@ -206,10 +210,16 @@ export default function HistoryPage() {
     return ["すべて", ...unique];
   }, [entries]);
 
+  const grades = useMemo(() => {
+    const unique = Array.from(new Set(entries.map((e) => detectGrade(e.itemName))));
+    return ["すべて", ...unique];
+  }, [entries]);
+
   const filteredEntries = useMemo(() => {
-    if (selectedStore === "すべて") return entries;
-    return entries.filter((e) => e.storeName === selectedStore);
-  }, [entries, selectedStore]);
+    return entries
+      .filter((e) => selectedStore === "すべて" || e.storeName === selectedStore)
+      .filter((e) => selectedGrade === "すべて" || detectGrade(e.itemName) === selectedGrade);
+  }, [entries, selectedStore, selectedGrade]);
 
   return (
     <div
@@ -237,18 +247,35 @@ export default function HistoryPage() {
       </header>
 
       <main className="w-full max-w-md bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-4">
-        {stores.length > 1 && (
-          <select
-            value={selectedStore}
-            onChange={(e) => setSharedStore(e.target.value === "すべて" ? null : e.target.value)}
-            className="w-full text-base text-gray-900 px-3 py-2.5 rounded-lg border border-gray-200 bg-white focus:outline-none focus:border-blue-400"
-          >
-            {stores.map((store) => (
-              <option key={store} value={store}>
-                {store}
-              </option>
-            ))}
-          </select>
+        {(stores.length > 1 || grades.length > 1) && (
+          <div className="flex gap-2">
+            {stores.length > 1 && (
+              <select
+                value={selectedStore}
+                onChange={(e) => setSharedStore(e.target.value === "すべて" ? null : e.target.value)}
+                className="flex-1 min-w-0 text-base text-gray-900 px-3 py-2.5 rounded-lg border border-gray-200 bg-white focus:outline-none focus:border-blue-400"
+              >
+                {stores.map((store) => (
+                  <option key={store} value={store}>
+                    {store}
+                  </option>
+                ))}
+              </select>
+            )}
+            {grades.length > 1 && (
+              <select
+                value={selectedGrade}
+                onChange={(e) => setSelectedGrade(e.target.value)}
+                className="flex-1 min-w-0 text-base text-gray-900 px-3 py-2.5 rounded-lg border border-gray-200 bg-white focus:outline-none focus:border-blue-400"
+              >
+                {grades.map((grade) => (
+                  <option key={grade} value={grade}>
+                    {grade === "すべて" ? "すべてのグレード" : grade}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
         )}
 
         {!loading && filteredEntries.length > 0 && (
