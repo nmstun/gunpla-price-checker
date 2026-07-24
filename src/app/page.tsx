@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { BrowserMultiFormatReader, Result, Exception } from "@zxing/library";
@@ -74,15 +74,44 @@ interface KitSearchState {
 // 詳細画面（/search/[janCode]）から「戻る」で帰ってきたときに検索結果が消えないよう、
 // キーワードと結果をsessionStorageに保持する。ブラウザ/タブを閉じれば自然に消える
 // 一時的な状態なので、店舗選択のようなlocalStorageでの永続化はしない
+const EMPTY_KIT_SEARCH_STATE: KitSearchState = { keyword: "", results: null };
+
 function readPersistedKitSearch(): KitSearchState {
-  if (typeof window === "undefined") return { keyword: "", results: null };
   try {
     const raw = sessionStorage.getItem(KIT_SEARCH_STATE_KEY);
-    if (!raw) return { keyword: "", results: null };
+    if (!raw) return EMPTY_KIT_SEARCH_STATE;
     return JSON.parse(raw) as KitSearchState;
   } catch {
-    return { keyword: "", results: null };
+    return EMPTY_KIT_SEARCH_STATE;
   }
+}
+
+// useSyncExternalStoreでsessionStorageをReact外部ストアとして扱う。
+// サーバー/ハイドレーション時は常にgetServerSnapshot（空状態）を返すためSSRと食い違わず、
+// ハイドレーション完了後にReactが自動でgetSnapshot（実際の保存値）へ再描画する
+let kitSearchSnapshot: KitSearchState | null = null;
+const kitSearchListeners = new Set<() => void>();
+
+function getKitSearchSnapshot(): KitSearchState {
+  if (kitSearchSnapshot === null) {
+    kitSearchSnapshot = readPersistedKitSearch();
+  }
+  return kitSearchSnapshot;
+}
+
+function getKitSearchServerSnapshot(): KitSearchState {
+  return EMPTY_KIT_SEARCH_STATE;
+}
+
+function subscribeKitSearch(listener: () => void): () => void {
+  kitSearchListeners.add(listener);
+  return () => kitSearchListeners.delete(listener);
+}
+
+function setKitSearchState(update: Partial<KitSearchState>) {
+  kitSearchSnapshot = { ...getKitSearchSnapshot(), ...update };
+  sessionStorage.setItem(KIT_SEARCH_STATE_KEY, JSON.stringify(kitSearchSnapshot));
+  kitSearchListeners.forEach((listener) => listener());
 }
 
 // バーコードが手元に無いときに、キット名から直接バンダイ公式サイトの定価を調べる機能。
@@ -90,14 +119,15 @@ function readPersistedKitSearch(): KitSearchState {
 // 一覧から商品を選ぶと、定価・最安値TOP3を表示する専用の詳細画面（/search/[janCode]）に遷移する
 function KitNameSearch() {
   const router = useRouter();
-  const [keyword, setKeyword] = useState(() => readPersistedKitSearch().keyword);
+  const { keyword, results } = useSyncExternalStore(
+    subscribeKitSearch,
+    getKitSearchSnapshot,
+    getKitSearchServerSnapshot
+  );
+  const setKeyword = (value: string) => setKitSearchState({ keyword: value });
+  const setResults = (value: KitSearchResultItem[] | null) => setKitSearchState({ results: value });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [results, setResults] = useState<KitSearchResultItem[] | null>(() => readPersistedKitSearch().results);
-
-  useEffect(() => {
-    sessionStorage.setItem(KIT_SEARCH_STATE_KEY, JSON.stringify({ keyword, results }));
-  }, [keyword, results]);
 
   const handleSearch = async () => {
     const trimmed = keyword.trim();
@@ -307,14 +337,9 @@ export default function Home() {
         {/* 読取り店舗の選択。店舗数が増えてもチップが折り返して縦に伸びないよう、
             ドロップダウンで1行に収めている。削除は選択中の店舗のみ、隣の「削除」ボタンから行う */}
         <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">
-              読取り店舗
-            </span>
-            <Link href="/stores" className="text-[11px] font-bold text-blue-600 active:text-blue-700">
-              店舗管理（住所・地図）
-            </Link>
-          </div>
+          <span className="text-xs font-bold text-gray-500 uppercase tracking-wider block">
+            読取り店舗
+          </span>
           {storeNames.length > 0 ? (
             <div className="flex gap-2">
               <select
