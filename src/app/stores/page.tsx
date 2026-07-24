@@ -91,10 +91,10 @@ export default function StoresPage() {
           <p className="text-sm text-gray-500 mt-1">住所を登録した店舗は地図にまとめて表示されます</p>
         </div>
         <Link
-          href="/"
+          href="/history"
           className="shrink-0 text-sm font-bold text-blue-600 hover:text-blue-700 px-3 py-2 -mr-3 rounded-lg active:bg-blue-50"
         >
-          スキャンへ戻る
+          履歴へ戻る
         </Link>
       </header>
 

@@ -1,21 +1,29 @@
 import { createClient as createBrowserClient } from './client'
 
 export interface StoreRecord {
+  id: string
+  name: string
+  address: string
+  url: string
+}
+
+export interface StoreInput {
   name: string
   address: string
   url: string
 }
 
 interface StoreRow {
+  id: string
   name: string
   address: string
   url: string
 }
 
-const SELECT_COLUMNS = 'name, address, url'
+const SELECT_COLUMNS = 'id, name, address, url'
 
 function mapRow(row: StoreRow): StoreRecord {
-  return { name: row.name, address: row.address, url: row.url }
+  return { id: row.id, name: row.name, address: row.address, url: row.url }
 }
 
 // 店舗一覧画面・スキャン画面から呼ぶ（クライアントコンポーネント用）。
@@ -34,19 +42,20 @@ export async function fetchStores(): Promise<StoreRecord[]> {
   return ((data ?? []) as StoreRow[]).map(mapRow)
 }
 
-export async function insertStore(store: StoreRecord): Promise<boolean> {
+// 追加した店舗のid付きレコードを返す（スキャン履歴保存時にstore_idとして使うため）
+export async function insertStore(store: StoreInput): Promise<StoreRecord | null> {
   const supabase = createBrowserClient()
-  if (!supabase) return false
+  if (!supabase) return null
 
-  const { error } = await supabase.from('stores').insert([store])
+  const { data, error } = await supabase.from('stores').insert([store]).select(SELECT_COLUMNS).single()
   if (error) {
     console.error('店舗の追加に失敗:', error)
-    return false
+    return null
   }
-  return true
+  return data ? mapRow(data as StoreRow) : null
 }
 
-export async function updateStoreRecord(originalName: string, updated: StoreRecord): Promise<boolean> {
+export async function updateStoreRecord(originalName: string, updated: StoreInput): Promise<boolean> {
   const supabase = createBrowserClient()
   if (!supabase) return false
 

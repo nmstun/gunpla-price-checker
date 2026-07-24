@@ -272,7 +272,10 @@ export default function Home() {
               // 読み取り成功時の処理
               setScannedCode(jan);
               setIsScanning(false); // スキャンを一旦停止
-              checkPrice(jan, selectedStore ?? ""); // 価格チェックAPIを叩く
+              // 選択中の店舗名がstoresテーブルに登録済みならidも渡し、リネーム後の
+              // 表示追従を効かせる（未登録の履歴由来の名前を選んだ場合はnullのまま）
+              const storeId = stores.find((s) => s.name === selectedStore)?.id ?? null;
+              checkPrice(jan, selectedStore ?? "", storeId); // 価格チェックAPIを叩く
             }
           }
           if (err && !(err.name === 'NotFoundException')) {
@@ -297,7 +300,7 @@ export default function Home() {
         codeReaderRef.current.reset();
       }
     };
-  }, [isScanning, checkPrice, selectedStore]);
+  }, [isScanning, checkPrice, selectedStore, stores]);
 
   // スキャンの再試行
   const handleResetScan = () => {

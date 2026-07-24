@@ -7,10 +7,13 @@ interface SaveScanHistoryInput {
   itemName: string
   officialPrice: number | null
   storeName: string
+  storeId: string | null
   isPremiumBandaiExclusive: boolean
 }
 
 // APIルート（サーバー）から呼ぶ。storeNameが空なら店舗未選択のスキャンとして記録しない。
+// storeIdはstoresテーブルの店舗を選択していた場合にのみ渡す（storesに未登録の店舗名を
+// 選んだ場合はnullのままstore_nameの文字列だけで記録する）。
 // 保存できた行のidを返す（店舗の販売価格を後から編集する際に使う）
 export async function saveScanHistory(input: SaveScanHistoryInput): Promise<string | null> {
   const storeName = input.storeName.trim()
@@ -28,6 +31,7 @@ export async function saveScanHistory(input: SaveScanHistoryInput): Promise<stri
           item_name: input.itemName,
           official_price: input.officialPrice,
           store_name: storeName,
+          store_id: input.storeId,
           is_premium_bandai_exclusive: input.isPremiumBandaiExclusive,
         },
       ])
@@ -86,13 +90,17 @@ interface ScanHistoryRow {
   official_price_is_manual: boolean
   is_premium_bandai_exclusive: boolean
   store_name: string
+  stores: { name: string } | null
   store_price: number | null
   scanned_at: string
 }
 
 const SELECT_COLUMNS =
-  'id, jan_code, item_name, official_price, official_price_is_manual, is_premium_bandai_exclusive, store_name, store_price, scanned_at'
+  'id, jan_code, item_name, official_price, official_price_is_manual, is_premium_bandai_exclusive, store_name, stores(name), store_price, scanned_at'
 
+// store_idでstoresと紐づいている行は、リネーム後も追従できるようstoresの現在の
+// 店舗名を優先して表示する。紐づいていない（店舗削除済み・store_id未設定の古い行）
+// 場合はスキャン時点のstore_nameスナップショットにフォールバックする
 function mapRow(row: ScanHistoryRow): ScanHistoryEntry {
   return {
     id: row.id,
@@ -101,7 +109,7 @@ function mapRow(row: ScanHistoryRow): ScanHistoryEntry {
     officialPrice: row.official_price === null ? null : Number(row.official_price),
     officialPriceIsManual: row.official_price_is_manual ?? false,
     isPremiumBandaiExclusive: row.is_premium_bandai_exclusive ?? false,
-    storeName: row.store_name,
+    storeName: row.stores?.name ?? row.store_name,
     storePrice: row.store_price,
     scannedAt: row.scanned_at,
   }
@@ -119,7 +127,7 @@ export async function fetchScanHistory(): Promise<ScanHistoryEntry[]> {
     return []
   }
 
-  return ((data ?? []) as ScanHistoryRow[]).map(mapRow)
+  return ((data ?? []) as unknown as ScanHistoryRow[]).map(mapRow)
 }
 
 // クライアントコンポーネント（履歴詳細画面）から呼ぶ
@@ -133,7 +141,7 @@ export async function fetchScanHistoryEntry(id: string): Promise<ScanHistoryEntr
     console.error('スキャン履歴の取得に失敗:', error)
     return null
   }
-  return data ? mapRow(data as ScanHistoryRow) : null
+  return data ? mapRow(data as unknown as ScanHistoryRow) : null
 }
 
 // 履歴一覧のスワイプ削除から呼ぶ（クライアントコンポーネント用）

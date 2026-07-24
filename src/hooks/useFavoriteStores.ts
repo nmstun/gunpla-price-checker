@@ -1,13 +1,14 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { fetchStores, insertStore, updateStoreRecord, deleteStoreRecord } from '@/lib/supabase/stores'
+import { fetchStores, insertStore, updateStoreRecord, deleteStoreRecord, StoreInput } from '@/lib/supabase/stores'
 
 // 旧バージョンで使っていたlocalStorageキー。DBに何も登録されていない場合のみ、
 // 一度だけこのデータをDBへ移行する（後方互換・端末に残っていた登録内容を失わないため）
 const LEGACY_STORAGE_KEY = 'gunpla-price-checker:favorite-stores'
 
 export interface FavoriteStore {
+  id: string
   name: string
   address: string
   url: string
@@ -28,7 +29,7 @@ function sortByName(stores: FavoriteStore[]): FavoriteStore[] {
 
 // 旧バージョンは店舗名だけのstring[]、その後は{name,address,url}[]で
 // localStorageに保存していたため、両方の形式を読めるようにしておく
-function readLegacyLocalStores(): FavoriteStore[] {
+function readLegacyLocalStores(): StoreInput[] {
   if (typeof window === 'undefined') return []
   const raw = window.localStorage.getItem(LEGACY_STORAGE_KEY)
   if (!raw) return []
@@ -94,9 +95,8 @@ export function useFavoriteStores() {
     if (!trimmed) return
     if (storesRef.current.some((s) => s.name === trimmed)) return
 
-    const store = { name: trimmed, address: address.trim(), url: normalizeUrl(url) }
-    const ok = await insertStore(store)
-    if (ok) setStores((prev) => sortByName([...prev, store]))
+    const created = await insertStore({ name: trimmed, address: address.trim(), url: normalizeUrl(url) })
+    if (created) setStores((prev) => sortByName([...prev, created]))
   }, [])
 
   const removeStore = useCallback(async (name: string) => {
@@ -106,8 +106,9 @@ export function useFavoriteStores() {
   }, [])
 
   // 店舗名・住所・URLを編集する。店舗名を変更しても、既にDBに記録済みの
-  // scan_history.store_name（文字列として保存済み）は遡って変わらない
-  const updateStore = useCallback(async (originalName: string, updated: FavoriteStore) => {
+  // scan_history.store_name（文字列として保存済み）は遡って変わらないが、
+  // store_idで紐づいている行は表示時にこの新しい名前を参照できる
+  const updateStore = useCallback(async (originalName: string, updated: StoreInput) => {
     const trimmedName = updated.name.trim()
     if (!trimmedName) return
     if (!storesRef.current.some((s) => s.name === originalName)) return
@@ -117,7 +118,9 @@ export function useFavoriteStores() {
     const normalized = { name: trimmedName, address: updated.address.trim(), url: normalizeUrl(updated.url) }
     const ok = await updateStoreRecord(originalName, normalized)
     if (ok) {
-      setStores((prev) => sortByName(prev.map((s) => (s.name === originalName ? normalized : s))))
+      setStores((prev) =>
+        sortByName(prev.map((s) => (s.name === originalName ? { ...s, ...normalized } : s)))
+      )
     }
   }, [])
 

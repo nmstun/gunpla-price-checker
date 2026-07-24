@@ -14,12 +14,13 @@ function isValidJanCode(janCode: unknown): janCode is string {
 
 export async function POST(request: Request) {
   try {
-    const { janCode, storeName } = await request.json()
+    const { janCode, storeName, storeId } = await request.json()
 
     if (!isValidJanCode(janCode)) {
       return NextResponse.json({ error: '不正なJANコードです' }, { status: 400 })
     }
     const store = typeof storeName === 'string' ? storeName : ''
+    const storeIdValue = typeof storeId === 'string' ? storeId : null
 
     const cached = await getCachedItem(janCode)
     if (cached) {
@@ -28,6 +29,7 @@ export async function POST(request: Request) {
         itemName: cached.itemName,
         officialPrice: cached.officialPrice,
         storeName: store,
+        storeId: storeIdValue,
         isPremiumBandaiExclusive: cached.isPremiumBandaiExclusive,
       })
       const result: CheckPriceResult = {
@@ -57,6 +59,7 @@ export async function POST(request: Request) {
       itemName: lookup.itemName,
       officialPrice: lookup.officialPrice,
       storeName: store,
+      storeId: storeIdValue,
       isPremiumBandaiExclusive: lookup.isPremiumBandaiExclusive,
     })
 
