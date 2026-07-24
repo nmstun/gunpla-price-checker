@@ -238,20 +238,17 @@ export default function HistoryPage() {
 
       <main className="w-full max-w-md bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-4">
         {stores.length > 1 && (
-          <div className="flex flex-wrap gap-2">
+          <select
+            value={selectedStore}
+            onChange={(e) => setSharedStore(e.target.value === "すべて" ? null : e.target.value)}
+            className="w-full text-base text-gray-900 px-3 py-2.5 rounded-lg border border-gray-200 bg-white focus:outline-none focus:border-blue-400"
+          >
             {stores.map((store) => (
-              <button
-                key={store}
-                onClick={() => setSharedStore(store === "すべて" ? null : store)}
-                className={`text-sm font-bold px-3.5 py-2 rounded-full border transition ${selectedStore === store
-                  ? "bg-blue-600 border-blue-600 text-white"
-                  : "bg-white border-gray-200 text-gray-600 active:border-blue-300"
-                  }`}
-              >
+              <option key={store} value={store}>
                 {store}
-              </button>
+              </option>
             ))}
-          </div>
+          </select>
         )}
 
         {!loading && filteredEntries.length > 0 && (

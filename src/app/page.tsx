@@ -2,12 +2,13 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { BrowserMultiFormatReader, Result, Exception } from "@zxing/library";
 import { useCheckPrice } from "@/hooks/useCheckPrice";
 import { useFavoriteStores } from "@/hooks/useFavoriteStores";
 import { useSelectedStore } from "@/hooks/useSelectedStore";
 import { updateStorePrice } from "@/lib/supabase/scanHistory";
-import { KitSearchResultItem, RefreshPriceResult } from "@/types";
+import { KitSearchResultItem } from "@/types";
 import { version as APP_VERSION } from "../../package.json";
 
 // スキャンごとにkey={scanHistoryId}で再マウントさせ、入力状態を自然にリセットする
@@ -65,18 +66,14 @@ function StorePriceInput({ scanHistoryId }: { scanHistoryId: string }) {
 }
 
 // バーコードが手元に無いときに、キット名から直接バンダイ公式サイトの定価を調べる機能。
-// バーコードスキャンとは独立しており、店舗選択やスキャン履歴への保存は行わない
+// バーコードスキャンとは独立しており、店舗選択やスキャン履歴への保存は行わない。
+// 一覧から商品を選ぶと、定価・最安値TOP3を表示する専用の詳細画面（/search/[janCode]）に遷移する
 function KitNameSearch() {
+  const router = useRouter();
   const [keyword, setKeyword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<KitSearchResultItem[] | null>(null);
-
-  // 一覧から選んだ商品の最安値（履歴詳細画面と同じくJANコードで都度取得する。保存はしない）
-  const [selected, setSelected] = useState<KitSearchResultItem | null>(null);
-  const [lowestPrice, setLowestPrice] = useState<number | null>(null);
-  const [lowestPriceLoading, setLowestPriceLoading] = useState(false);
-  const lowestPriceRequestRef = useRef(0);
 
   const handleSearch = async () => {
     const trimmed = keyword.trim();
@@ -84,8 +81,6 @@ function KitNameSearch() {
     setLoading(true);
     setError(null);
     setResults(null);
-    setSelected(null);
-    setLowestPrice(null);
     try {
       const res = await fetch("/api/search-kit-name", {
         method: "POST",
@@ -104,26 +99,13 @@ function KitNameSearch() {
     }
   };
 
-  const handleSelect = async (item: KitSearchResultItem) => {
-    setSelected(item);
-    setLowestPrice(null);
-    setLowestPriceLoading(true);
-    const requestId = ++lowestPriceRequestRef.current;
-    try {
-      const res = await fetch("/api/refresh-price", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ janCode: item.janCode, persist: false }),
-      });
-      const json = await res.json();
-      if (lowestPriceRequestRef.current === requestId && res.ok) {
-        setLowestPrice((json as RefreshPriceResult).lowestMarketPrice);
-      }
-    } catch {
-      // 自動取得の失敗は静かに諦める
-    } finally {
-      if (lowestPriceRequestRef.current === requestId) setLowestPriceLoading(false);
-    }
+  const handleSelect = (item: KitSearchResultItem) => {
+    const query = new URLSearchParams({
+      title: item.title,
+      price: String(item.price),
+      url: item.url,
+    }).toString();
+    router.push(`/search/${item.janCode}?${query}`);
   };
 
   return (
@@ -162,51 +144,12 @@ function KitNameSearch() {
             <button
               key={`${item.janCode}-${index}`}
               onClick={() => handleSelect(item)}
-              className={`w-full flex items-center justify-between gap-3 p-3 text-left transition-colors ${selected?.janCode === item.janCode
-                ? "bg-blue-50"
-                : "bg-white active:bg-gray-50"
-                }`}
+              className="w-full flex items-center justify-between gap-3 p-3 text-left bg-white active:bg-gray-50 transition-colors"
             >
               <span className="text-sm text-gray-700 leading-snug">{item.title}</span>
               <span className="shrink-0 text-sm text-gray-900">¥{item.price.toLocaleString()}</span>
             </button>
           ))}
-        </div>
-      )}
-
-      {/* 選んだ商品の定価・最安値。履歴詳細画面と同じ「ラベル→大きな値」のカードで揃えている */}
-      {selected && (
-        <div className="rounded-xl border border-gray-100 divide-y divide-gray-100 overflow-hidden">
-          <div className="p-4 bg-gradient-to-br from-blue-50 to-indigo-50">
-            <span className="text-xs text-blue-600 font-medium block">メーカー希望小売価格</span>
-            <span className="text-2xl font-normal text-blue-900 mt-1 block">
-              ¥{selected.price.toLocaleString()}
-              <span className="text-xs font-normal text-gray-500"> (税込)</span>
-            </span>
-          </div>
-          <div className="p-4 bg-white">
-            <span className="text-xs text-gray-500 font-medium block">Yahoo!ショッピング最安値</span>
-            {lowestPriceLoading ? (
-              <span className="text-sm text-gray-400 mt-1 flex items-center gap-1.5">
-                <span className="w-3 h-3 border-2 border-gray-300 border-t-transparent rounded-full animate-spin" />
-                取得中...
-              </span>
-            ) : lowestPrice !== null ? (
-              <span className="text-2xl font-normal text-gray-900 mt-1 block">
-                ¥{lowestPrice.toLocaleString()}
-              </span>
-            ) : (
-              <span className="text-sm text-gray-400 mt-1 block">取得できませんでした</span>
-            )}
-          </div>
-          <a
-            href={selected.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="block p-3 text-center text-xs font-bold text-blue-600 active:bg-blue-50 transition-colors"
-          >
-            バンダイ公式ページを見る
-          </a>
         </div>
       )}
     </div>
