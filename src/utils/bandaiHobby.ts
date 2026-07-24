@@ -186,12 +186,21 @@ async function runBandaiSearch(keyword: string): Promise<BandaiProduct[]> {
     .map((item) => ({
       title: String(item.title ?? ''),
       price: Number(item.product.price),
-      janCode: String(item.product.jancode),
+      janCode: normalizeBandaiJanCode(String(item.product.jancode)),
       url: String(item.url ?? ''),
     }))
 }
 
-// バンダイ側のjancodeはJAN13桁の末尾に "000" 等が付与された16桁で返ることがあるため前方一致で比較する
+// バンダイ側のjancodeはJAN13桁の末尾に"000"等が付与された16桁で返ることがある。
+// 実在のJANコードは常に先頭13桁（まれに8桁）なので、それより長ければ切り詰める。
+// これをしないと、この値をそのまま他のJANコード前提のAPI（/api/refresh-price等）に
+// 渡したときに桁数チェックで弾かれてしまう
+function normalizeBandaiJanCode(jancode: string): string {
+  return jancode.length > 13 ? jancode.slice(0, 13) : jancode
+}
+
+// バンダイ側のjancodeは上記の通り末尾に余分な桁が付くことがあるため、
+// 正規化後も念のため前方一致で比較する（正規化ミスの際の保険）
 function janCodeMatches(bandaiJanCode: string, scannedJanCode: string): boolean {
   return bandaiJanCode === scannedJanCode || bandaiJanCode.startsWith(scannedJanCode)
 }
