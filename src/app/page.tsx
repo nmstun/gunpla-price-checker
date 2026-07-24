@@ -9,7 +9,6 @@ import { useFavoriteStores } from "@/hooks/useFavoriteStores";
 import { useSelectedStore } from "@/hooks/useSelectedStore";
 import { updateStorePrice } from "@/lib/supabase/scanHistory";
 import { KitSearchResultItem } from "@/types";
-import { version as APP_VERSION } from "../../package.json";
 
 // スキャンごとにkey={scanHistoryId}で再マウントさせ、入力状態を自然にリセットする
 function StorePriceInput({ scanHistoryId }: { scanHistoryId: string }) {
@@ -278,9 +277,6 @@ export default function Home() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
             ガンプラ定価チェッカー
-          </h1>
-          <h1 className="text-sm text-gray-500 mt-1">
-            v{APP_VERSION}
           </h1>
           <p className="text-sm text-gray-500 mt-1">カメラをバーコードにかざして転売価格を見破る</p>
         </div>
@@ -558,7 +554,6 @@ export default function Home() {
           </div>
         )}
       </main>
-      <p className="text-[11px] text-gray-400 mt-4">v{APP_VERSION}</p>
     </div>
   );
 }

@@ -1,24 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useFavoriteStores, FavoriteStore } from "@/hooks/useFavoriteStores";
 import { useSelectedStore } from "@/hooks/useSelectedStore";
+import { fetchScanHistory } from "@/lib/supabase/scanHistory";
 
 // APIキー不要のGoogle Mapsの簡易埋め込み形式（output=embed）を使う。
 // 公式のMaps Embed APIと違いキー登録が要らない反面、Google側の仕様変更で
-// 予告なく動かなくなる可能性がある非公式な使い方であることは承知の上で採用している
-function StoreMap({ address }: { address: string }) {
-  if (!address.trim()) return null;
-  const src = `https://maps.google.com/maps?q=${encodeURIComponent(address)}&output=embed`;
+// 予告なく動かなくなる可能性がある非公式な使い方であることは承知の上で採用している。
+// 住所を"|"区切りで複数渡すと、1つの地図に複数ピンをまとめて表示できる（実測で確認済み）
+function CombinedStoreMap({ addresses }: { addresses: string[] }) {
+  if (addresses.length === 0) return null;
+  const src = `https://maps.google.com/maps?q=${encodeURIComponent(addresses.join("|"))}&output=embed`;
   return (
     <iframe
       src={src}
-      className="w-full h-40 rounded-lg border border-gray-200 mt-2"
+      className="w-full h-64 rounded-lg border border-gray-200"
       style={{ border: 0 }}
-      loading="lazy"
+      loading="eager"
       referrerPolicy="no-referrer-when-downgrade"
-      title={`${address}の地図`}
+      title="スキャン履歴のある店舗の地図"
     />
   );
 }
@@ -38,6 +40,20 @@ export default function StoresPage() {
   const [editingName, setEditingName] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<StoreFormValue>(EMPTY_FORM);
   const [newStore, setNewStore] = useState<StoreFormValue>(EMPTY_FORM);
+
+  // 地図には、スキャン履歴が実際にある店舗だけを表示する（住所を登録しただけで
+  // 一度も使っていない店舗まで地図に出ると、行ったことのある店舗が埋もれるため）
+  const [historyStoreNames, setHistoryStoreNames] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    fetchScanHistory().then((entries) => {
+      setHistoryStoreNames(new Set(entries.map((e) => e.storeName)));
+    });
+  }, []);
+
+  const mapAddresses = stores
+    .filter((s) => historyStoreNames.has(s.name) && s.address.trim())
+    .map((s) => s.address);
 
   const handleStartEdit = (store: FavoriteStore) => {
     setEditingName(store.name);
@@ -84,7 +100,7 @@ export default function StoresPage() {
       <header className="mb-6 w-full max-w-md flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 tracking-tight">店舗管理</h1>
-          <p className="text-sm text-gray-500 mt-1">住所を登録すると地図が表示されます</p>
+          <p className="text-sm text-gray-500 mt-1">スキャン履歴のある店舗は地図にまとめて表示されます</p>
         </div>
         <Link
           href="/"
@@ -95,6 +111,15 @@ export default function StoresPage() {
       </header>
 
       <main className="w-full max-w-md bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-4">
+        {mapAddresses.length > 0 && (
+          <div className="space-y-1.5">
+            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider block">
+              スキャン履歴のある店舗
+            </span>
+            <CombinedStoreMap addresses={mapAddresses} />
+          </div>
+        )}
+
         {stores.length === 0 && (
           <p className="text-[11px] text-gray-400 text-center py-4">
             まだ登録された店舗がありません。下から追加してください。
@@ -180,7 +205,6 @@ export default function StoresPage() {
                         </button>
                       </div>
                     </div>
-                    <StoreMap address={store.address} />
                   </>
                 )}
               </div>

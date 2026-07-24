@@ -12,6 +12,15 @@ export interface FavoriteStore {
 
 const EMPTY_STORES: FavoriteStore[] = []
 
+// "example.com"のようにプロトコルなしで入力されると<a href>が相対パス扱いになり
+// 自サイト内のパスに解決されてしまう（外部リンクにならない）ため、保存時に補う
+function normalizeUrl(raw: string): string {
+  const trimmed = raw.trim()
+  if (!trimmed) return ''
+  if (/^https?:\/\//i.test(trimmed)) return trimmed
+  return `https://${trimmed}`
+}
+
 // useSyncExternalStoreはgetSnapshotが呼ばれるたびに同じ参照を返さないと
 // 再レンダーが無限に走ってしまうため、localStorageの生の値が変わっていなければ
 // 前回パースした配列をそのまま返すようにキャッシュする
@@ -31,7 +40,7 @@ function parseStoredStores(raw: string): FavoriteStore[] | null {
     return parsed.map((s) => ({
       name: s.name,
       address: typeof s.address === 'string' ? s.address : '',
-      url: typeof s.url === 'string' ? s.url : '',
+      url: normalizeUrl(typeof s.url === 'string' ? s.url : ''),
     }))
   }
   return null
@@ -84,7 +93,7 @@ export function useFavoriteStores() {
     if (!trimmed) return
     const current = readStores()
     if (current.some((s) => s.name === trimmed)) return
-    writeStores([{ name: trimmed, address: address.trim(), url: url.trim() }, ...current])
+    writeStores([{ name: trimmed, address: address.trim(), url: normalizeUrl(url) }, ...current])
   }, [])
 
   const removeStore = useCallback((name: string) => {
@@ -106,7 +115,7 @@ export function useFavoriteStores() {
     writeStores(
       current.map((s) =>
         s.name === originalName
-          ? { name: trimmedName, address: updated.address.trim(), url: updated.url.trim() }
+          ? { name: trimmedName, address: updated.address.trim(), url: normalizeUrl(updated.url) }
           : s
       )
     )

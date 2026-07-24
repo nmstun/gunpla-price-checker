@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { version as APP_VERSION } from "../../package.json";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -35,7 +36,20 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        {children}
+        {/* 全画面共通で右上に常時表示するアプリバージョン。動作確認・問い合わせ時に
+            どのビルドを見ているか分かるようにする目的。スクロールしても隠れないようfixed */}
+        <div
+          className="fixed z-50 text-[10px] text-gray-400 select-none pointer-events-none"
+          style={{
+            top: "max(0.5rem, env(safe-area-inset-top))",
+            right: "max(0.5rem, env(safe-area-inset-right))",
+          }}
+        >
+          v{APP_VERSION}
+        </div>
+      </body>
     </html>
   );
 }
