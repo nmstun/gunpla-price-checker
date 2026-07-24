@@ -1,3 +1,5 @@
+import { detectGrade } from './grade'
+
 const SEARCH_PAGE_URL = 'https://bandai-hobby.net/search/'
 const PRODUCT_LIST_API = 'https://cmsapi-frontend.bandai-hobby.net/site/api/hobby/Product/list'
 const MANUAL_SEARCH_URL = 'https://manual.bandai-hobby.net/'
@@ -327,14 +329,29 @@ export async function findOfficialPriceByJanCode(keyword: string, janCode: strin
 // キット名で検索し、候補商品の一覧をそのまま返す（JANコードによる絞り込みは行わない）。
 // バーコードが手元に無いときに、キット名から直接バンダイ公式サイトの定価を
 // 調べたい場合に使う。JAN照合と同じ段階的キーワード緩和（型式番号→末尾括弧注記→
-// バリエーション接尾辞）で検索範囲を広げ、最初に1件以上ヒットした段階の結果を返す
+// バリエーション接尾辞）で検索範囲を広げ、最初に1件以上ヒットした段階の結果を返す。
+//
+// グレード表記（HG/RG/MG等）は検索キーワード自体からは除去して広く検索するため
+// （バンダイの検索がグレード表記の先頭一致をブランドコードと誤解釈し404になる問題の
+// 回避、toBandaiSearchKeyword参照）、バンダイ側の検索結果にはグレード違いの商品が
+// 大量に混ざってくる。呼び出し側の表示件数には上限があるため、この時点でグレードを
+// 考慮しないと目的の商品が上限からこぼれ落ちてしまう（実例:「RG 1/144 ガンダムMk-II」で
+// 検索しても、HG/MG等の同名キットが先に来てRG版が表示件数の15件に収まらなかった）。
+// 元のキーワードからユーザーが指定したグレードを判定できた場合、そのグレードに
+// 一致する候補を先頭に並べ替える
 export async function searchBandaiProductsByName(rawKeyword: string): Promise<BandaiProduct[]> {
   const keywordTiers = buildKeywordTiers(rawKeyword)
 
+  let products: BandaiProduct[] = []
   for (const tier of keywordTiers) {
-    const products = await runBandaiSearch(tier)
-    if (products.length > 0) return products
+    products = await runBandaiSearch(tier)
+    if (products.length > 0) break
   }
 
-  return []
+  const requestedGrade = detectGrade(rawKeyword)
+  if (requestedGrade === 'その他') return products
+
+  const matching = products.filter((p) => detectGrade(p.title) === requestedGrade)
+  const others = products.filter((p) => detectGrade(p.title) !== requestedGrade)
+  return [...matching, ...others]
 }
