@@ -16,7 +16,7 @@ const BANDAI_HEADERS = {
   'Accept-Language': 'ja,en-US;q=0.9,en;q=0.8',
 }
 
-interface BandaiProduct {
+export interface BandaiProduct {
   title: string
   price: number
   janCode: string
@@ -137,6 +137,23 @@ const TRAILING_PARENTHETICAL_PATTERN = /[（(][^（）()]*[）)]$/
 
 function stripTrailingParenthetical(keyword: string): string {
   return keyword.replace(TRAILING_PARENTHETICAL_PATTERN, '')
+}
+
+// 検索キーワードを段階的に緩めた候補列を作る（型式番号→末尾括弧注記→バリエーション接尾辞の順で除去）。
+// バンダイ側の検索は情報を削って広く検索するほどヒットしやすくなる癖があるため、
+// 呼び出し側は先頭から順に試し、最初にヒットした段階を採用する
+function buildKeywordTiers(nameForSearch: string): string[] {
+  const baseKeyword = toBandaiSearchKeyword(nameForSearch)
+  if (!baseKeyword) return []
+
+  const keywordTiers = [baseKeyword]
+  const pushTier = (kw: string) => {
+    if (kw && !keywordTiers.includes(kw)) keywordTiers.push(kw)
+  }
+  pushTier(stripModelCode(baseKeyword))
+  pushTier(stripTrailingParenthetical(keywordTiers[keywordTiers.length - 1]))
+  pushTier(stripQualifierSuffix(keywordTiers[keywordTiers.length - 1]))
+  return keywordTiers
 }
 
 async function runBandaiSearch(keyword: string): Promise<BandaiProduct[]> {
@@ -281,18 +298,7 @@ export async function findOfficialPriceByJanCode(keyword: string, janCode: strin
   const canonicalName = await resolveCanonicalNameByJanCode(janCode)
   const nameForSearch = canonicalName ?? keyword
 
-  const baseKeyword = toBandaiSearchKeyword(nameForSearch)
-  if (!baseKeyword) return { officialPrice: null, canonicalName }
-
-  const keywordTiers = [baseKeyword]
-  const pushTier = (kw: string) => {
-    if (kw && !keywordTiers.includes(kw)) keywordTiers.push(kw)
-  }
-  // 段階的に情報を削って検索範囲を広げる（型式番号→末尾括弧注記→バリエーション接尾辞）。
-  // いずれも最終的にJANまたは商品名の完全一致で絞り込むため、広げすぎても誤採用しない
-  pushTier(stripModelCode(baseKeyword))
-  pushTier(stripTrailingParenthetical(keywordTiers[keywordTiers.length - 1]))
-  pushTier(stripQualifierSuffix(keywordTiers[keywordTiers.length - 1]))
+  const keywordTiers = buildKeywordTiers(nameForSearch)
 
   for (const tier of keywordTiers) {
     const products = await runBandaiSearch(tier)
@@ -307,4 +313,19 @@ export async function findOfficialPriceByJanCode(keyword: string, janCode: strin
   if (loosePrice !== null) return { officialPrice: loosePrice, canonicalName }
 
   return { officialPrice: null, canonicalName }
+}
+
+// キット名で検索し、候補商品の一覧をそのまま返す（JANコードによる絞り込みは行わない）。
+// バーコードが手元に無いときに、キット名から直接バンダイ公式サイトの定価を
+// 調べたい場合に使う。JAN照合と同じ段階的キーワード緩和（型式番号→末尾括弧注記→
+// バリエーション接尾辞）で検索範囲を広げ、最初に1件以上ヒットした段階の結果を返す
+export async function searchBandaiProductsByName(rawKeyword: string): Promise<BandaiProduct[]> {
+  const keywordTiers = buildKeywordTiers(rawKeyword)
+
+  for (const tier of keywordTiers) {
+    const products = await runBandaiSearch(tier)
+    if (products.length > 0) return products
+  }
+
+  return []
 }

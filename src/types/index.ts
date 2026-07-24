@@ -46,3 +46,12 @@ export interface RefreshPriceResult {
   lowestMarketPrice: number | null
   isPremiumBandaiExclusive: boolean
 }
+
+// キット名検索APIの結果1件分。バーコードが手元に無いときに、キット名から直接
+// バンダイ公式サイトを検索する機能で使う（スキャン履歴には保存しない、その場限りの検索）
+export interface KitSearchResultItem {
+  title: string
+  price: number
+  janCode: string
+  url: string
+}
