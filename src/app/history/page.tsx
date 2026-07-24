@@ -248,6 +248,12 @@ export default function HistoryPage() {
       </header>
 
       <main className="w-full max-w-md bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-4">
+        <div className="flex justify-end">
+          <Link href="/stores" className="text-[11px] font-bold text-blue-600 active:text-blue-700">
+            店舗管理（住所・地図）
+          </Link>
+        </div>
+
         {(stores.length > 1 || grades.length > 1) && (
           <div className="flex gap-2">
             {stores.length > 1 && (

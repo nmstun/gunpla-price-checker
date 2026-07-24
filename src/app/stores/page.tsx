@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useFavoriteStores, FavoriteStore } from "@/hooks/useFavoriteStores";
 import { useSelectedStore } from "@/hooks/useSelectedStore";
-import { fetchScanHistory } from "@/lib/supabase/scanHistory";
 
 // APIキー不要のGoogle Mapsの簡易埋め込み形式（output=embed）を使う。
 // 公式のMaps Embed APIと違いキー登録が要らない反面、Google側の仕様変更で
@@ -20,7 +19,7 @@ function CombinedStoreMap({ addresses }: { addresses: string[] }) {
       style={{ border: 0 }}
       loading="eager"
       referrerPolicy="no-referrer-when-downgrade"
-      title="スキャン履歴のある店舗の地図"
+      title="住所登録された店舗の地図"
     />
   );
 }
@@ -41,19 +40,8 @@ export default function StoresPage() {
   const [editForm, setEditForm] = useState<StoreFormValue>(EMPTY_FORM);
   const [newStore, setNewStore] = useState<StoreFormValue>(EMPTY_FORM);
 
-  // 地図には、スキャン履歴が実際にある店舗だけを表示する（住所を登録しただけで
-  // 一度も使っていない店舗まで地図に出ると、行ったことのある店舗が埋もれるため）
-  const [historyStoreNames, setHistoryStoreNames] = useState<Set<string>>(new Set());
-
-  useEffect(() => {
-    fetchScanHistory().then((entries) => {
-      setHistoryStoreNames(new Set(entries.map((e) => e.storeName)));
-    });
-  }, []);
-
-  const mapAddresses = stores
-    .filter((s) => historyStoreNames.has(s.name) && s.address.trim())
-    .map((s) => s.address);
+  // 地図には、住所が登録されている店舗をすべて表示する
+  const mapAddresses = stores.filter((s) => s.address.trim()).map((s) => s.address);
 
   const handleStartEdit = (store: FavoriteStore) => {
     setEditingName(store.name);
@@ -100,7 +88,7 @@ export default function StoresPage() {
       <header className="mb-6 w-full max-w-md flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 tracking-tight">店舗管理</h1>
-          <p className="text-sm text-gray-500 mt-1">スキャン履歴のある店舗は地図にまとめて表示されます</p>
+          <p className="text-sm text-gray-500 mt-1">住所を登録した店舗は地図にまとめて表示されます</p>
         </div>
         <Link
           href="/"
@@ -114,7 +102,7 @@ export default function StoresPage() {
         {mapAddresses.length > 0 && (
           <div className="space-y-1.5">
             <span className="text-xs font-bold text-gray-500 uppercase tracking-wider block">
-              スキャン履歴のある店舗
+              住所登録された店舗
             </span>
             <CombinedStoreMap addresses={mapAddresses} />
           </div>
@@ -142,16 +130,16 @@ export default function StoresPage() {
                     />
                     <input
                       type="text"
-                      value={editForm.address}
-                      onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
-                      placeholder="住所（任意）"
+                      value={editForm.url}
+                      onChange={(e) => setEditForm({ ...editForm, url: e.target.value })}
+                      placeholder="URL（任意）"
                       className="w-full text-sm text-gray-900 px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:border-blue-400"
                     />
                     <input
                       type="text"
-                      value={editForm.url}
-                      onChange={(e) => setEditForm({ ...editForm, url: e.target.value })}
-                      placeholder="URL（任意）"
+                      value={editForm.address}
+                      onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
+                      placeholder="住所（任意）"
                       className="w-full text-sm text-gray-900 px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:border-blue-400"
                     />
                     <div className="flex gap-2">
@@ -226,16 +214,16 @@ export default function StoresPage() {
           />
           <input
             type="text"
-            value={newStore.address}
-            onChange={(e) => setNewStore({ ...newStore, address: e.target.value })}
-            placeholder="住所（任意・地図表示に使います）"
+            value={newStore.url}
+            onChange={(e) => setNewStore({ ...newStore, url: e.target.value })}
+            placeholder="URL（任意）"
             className="w-full text-base text-gray-900 px-3 py-2.5 rounded-lg border border-gray-200 focus:outline-none focus:border-blue-400"
           />
           <input
             type="text"
-            value={newStore.url}
-            onChange={(e) => setNewStore({ ...newStore, url: e.target.value })}
-            placeholder="URL（任意）"
+            value={newStore.address}
+            onChange={(e) => setNewStore({ ...newStore, address: e.target.value })}
+            placeholder="住所（任意・地図表示に使います）"
             className="w-full text-base text-gray-900 px-3 py-2.5 rounded-lg border border-gray-200 focus:outline-none focus:border-blue-400"
           />
           <button
