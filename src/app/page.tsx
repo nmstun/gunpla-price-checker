@@ -65,15 +65,40 @@ function StorePriceInput({ scanHistoryId }: { scanHistoryId: string }) {
   );
 }
 
+const KIT_SEARCH_STATE_KEY = "gunpla-price-checker:kit-search-state";
+
+interface KitSearchState {
+  keyword: string;
+  results: KitSearchResultItem[] | null;
+}
+
+// 詳細画面（/search/[janCode]）から「戻る」で帰ってきたときに検索結果が消えないよう、
+// キーワードと結果をsessionStorageに保持する。ブラウザ/タブを閉じれば自然に消える
+// 一時的な状態なので、店舗選択のようなlocalStorageでの永続化はしない
+function readPersistedKitSearch(): KitSearchState {
+  if (typeof window === "undefined") return { keyword: "", results: null };
+  try {
+    const raw = sessionStorage.getItem(KIT_SEARCH_STATE_KEY);
+    if (!raw) return { keyword: "", results: null };
+    return JSON.parse(raw) as KitSearchState;
+  } catch {
+    return { keyword: "", results: null };
+  }
+}
+
 // バーコードが手元に無いときに、キット名から直接バンダイ公式サイトの定価を調べる機能。
 // バーコードスキャンとは独立しており、店舗選択やスキャン履歴への保存は行わない。
 // 一覧から商品を選ぶと、定価・最安値TOP3を表示する専用の詳細画面（/search/[janCode]）に遷移する
 function KitNameSearch() {
   const router = useRouter();
-  const [keyword, setKeyword] = useState("");
+  const [keyword, setKeyword] = useState(() => readPersistedKitSearch().keyword);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [results, setResults] = useState<KitSearchResultItem[] | null>(null);
+  const [results, setResults] = useState<KitSearchResultItem[] | null>(() => readPersistedKitSearch().results);
+
+  useEffect(() => {
+    sessionStorage.setItem(KIT_SEARCH_STATE_KEY, JSON.stringify({ keyword, results }));
+  }, [keyword, results]);
 
   const handleSearch = async () => {
     const trimmed = keyword.trim();

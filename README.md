@@ -42,6 +42,7 @@ Deployment Platform: Vercel
 - 一覧から商品をタップして選ぶと、専用の詳細画面（[`/search/[janCode]`](src/app/search/%5BjanCode%5D/page.tsx)）に遷移します。scan_historyに紐づくレコードが無いため、商品名・定価・バンダイ公式URLは遷移元からクエリパラメータで渡し、Yahoo!ショッピング最安値のTOP3だけは履歴詳細画面と同じ仕組みでJANコードから都度取得します（`/api/refresh-price`を`persist: false`で呼ぶだけなので保存はされません）。TOP3各行・バンダイ公式ページへのリンクも履歴詳細・スキャン結果画面と共通の見た目です
 - バーコードスキャンとは完全に独立した機能で、店舗選択は不要、**検索結果はスキャン履歴（`scan_history`）には保存されません**
 - バンダイ側のJANコードは末尾に"000"等が付与された16桁で返ることがあるため、13桁に正規化してから使っています（[normalizeBandaiJanCode in src/utils/bandaiHobby.ts](src/utils/bandaiHobby.ts)。正規化しないと`/api/refresh-price`のJANコード桁数チェックに弾かれてしまいます）
+- 検索キーワードと結果は`sessionStorage`に保持されるため、詳細画面から「戻る」で帰ってきても検索し直す必要はありません（タブ・ブラウザを閉じれば消える一時的な状態です）
 
 🏬 読取り店舗の選択・スキャン履歴
 バーコードを読み取る前に「読取り店舗」を選択する必要があります（未選択だとカメラ起動ボタンが無効化されます）。
