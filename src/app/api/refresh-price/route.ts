@@ -52,6 +52,7 @@ export async function POST(request: Request) {
       itemName: lookup.itemName,
       officialPrice: lookup.officialPrice,
       lowestMarketPrice,
+      offers: lookup.offers,
       isPremiumBandaiExclusive: lookup.isPremiumBandaiExclusive,
     }
     return NextResponse.json(result)

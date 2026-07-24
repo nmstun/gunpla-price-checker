@@ -39,11 +39,14 @@ export interface ScanHistoryEntry {
   scannedAt: string
 }
 
-// 定価再取得APIのレスポンス。最安値は保存せず、取得のたびに都度返す
+// 定価再取得APIのレスポンス。最安値・上位オファーは保存せず、取得のたびに都度返す
 export interface RefreshPriceResult {
   itemName: string
   officialPrice: number | null
   lowestMarketPrice: number | null
+  // 最安値順の上位オファー（最大3件、各店舗へのリンク付き）。スキャン結果画面と
+  // 同じ内容を履歴詳細画面でも表示するために追加した
+  offers: Offer[]
   isPremiumBandaiExclusive: boolean
 }
 

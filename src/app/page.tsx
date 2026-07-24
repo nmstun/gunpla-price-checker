@@ -8,6 +8,7 @@ import { useFavoriteStores } from "@/hooks/useFavoriteStores";
 import { useSelectedStore } from "@/hooks/useSelectedStore";
 import { updateStorePrice } from "@/lib/supabase/scanHistory";
 import { KitSearchResultItem, RefreshPriceResult } from "@/types";
+import { version as APP_VERSION } from "../../package.json";
 
 // スキャンごとにkey={scanHistoryId}で再マウントさせ、入力状態を自然にリセットする
 function StorePriceInput({ scanHistoryId }: { scanHistoryId: string }) {
@@ -322,37 +323,37 @@ export default function Home() {
 
       <main className="w-full max-w-md bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-6">
 
-        {/* 読取り店舗の選択 */}
+        {/* 読取り店舗の選択。店舗数が増えてもチップが折り返して縦に伸びないよう、
+            ドロップダウンで1行に収めている。削除は選択中の店舗のみ、隣の「削除」ボタンから行う */}
         <div className="space-y-2">
           <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">
             読取り店舗
           </span>
           {stores.length > 0 ? (
-            <div className="flex flex-wrap gap-2">
-              {stores.map((store) => (
-                <span
-                  key={store}
-                  className={`flex items-center gap-0.5 pl-3.5 pr-1.5 py-2 rounded-full border text-sm font-bold transition ${selectedStore === store
-                    ? "bg-blue-600 border-blue-600 text-white"
-                    : "bg-white border-gray-200 text-gray-600"
-                    }`}
-                >
-                  <button onClick={() => setSelectedStore(store)} className="py-0.5">
+            <div className="flex gap-2">
+              <select
+                value={selectedStore ?? ""}
+                onChange={(e) => setSelectedStore(e.target.value || null)}
+                className="flex-1 min-w-0 text-base text-gray-900 px-3 py-2.5 rounded-lg border border-gray-200 bg-white focus:outline-none focus:border-blue-400"
+              >
+                <option value="" disabled>
+                  店舗を選択してください
+                </option>
+                {stores.map((store) => (
+                  <option key={store} value={store}>
                     {store}
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleRemoveStore(store);
-                    }}
-                    aria-label={`${store}を削除`}
-                    className={`w-7 h-7 shrink-0 flex items-center justify-center rounded-full text-sm leading-none ${selectedStore === store ? "active:bg-blue-700" : "active:bg-gray-200"
-                      }`}
-                  >
-                    ×
-                  </button>
-                </span>
-              ))}
+                  </option>
+                ))}
+              </select>
+              {selectedStore && (
+                <button
+                  onClick={() => handleRemoveStore(selectedStore)}
+                  aria-label={`${selectedStore}を削除`}
+                  className="shrink-0 text-sm font-bold px-4 py-2.5 rounded-lg bg-gray-100 text-gray-500 active:bg-gray-200 transition"
+                >
+                  削除
+                </button>
+              )}
             </div>
           ) : (
             <p className="text-[11px] text-gray-400">まだ登録された店舗がありません。下から追加してください。</p>
@@ -373,9 +374,6 @@ export default function Home() {
               追加
             </button>
           </div>
-          {selectedStore && (
-            <p className="text-[11px] text-blue-600">選択中: {selectedStore}</p>
-          )}
         </div>
 
         {/* カメラ・スキャナー領域 */}
@@ -584,6 +582,7 @@ export default function Home() {
           </div>
         )}
       </main>
+      <p className="text-[11px] text-gray-400 mt-4">v{APP_VERSION}</p>
     </div>
   );
 }

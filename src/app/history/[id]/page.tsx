@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { fetchScanHistoryEntry, updateStorePrice, updateOfficialPrice } from "@/lib/supabase/scanHistory";
-import { ScanHistoryEntry, RefreshPriceResult } from "@/types";
+import { ScanHistoryEntry, RefreshPriceResult, Offer } from "@/types";
 
 export default function HistoryDetailPage() {
   const params = useParams<{ id: string }>();
@@ -22,8 +22,8 @@ export default function HistoryDetailPage() {
 
   const [refreshing, setRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
-  // 最安値は都度取得の値なので保存しない。画面を開いた瞬間に自動取得する
-  const [lowestMarketPrice, setLowestMarketPrice] = useState<number | null>(null);
+  // 最安値・上位オファーは都度取得の値なので保存しない。画面を開いた瞬間に自動取得する
+  const [offers, setOffers] = useState<Offer[]>([]);
   const [lowestMarketLoading, setLowestMarketLoading] = useState(false);
 
   useEffect(() => {
@@ -31,7 +31,7 @@ export default function HistoryDetailPage() {
 
     async function load() {
       setLoading(true);
-      setLowestMarketPrice(null);
+      setOffers([]);
 
       const data = await fetchScanHistoryEntry(params.id);
       if (cancelled) return;
@@ -50,7 +50,7 @@ export default function HistoryDetailPage() {
         });
         const json = await res.json();
         if (!cancelled && res.ok) {
-          setLowestMarketPrice((json as RefreshPriceResult).lowestMarketPrice);
+          setOffers((json as RefreshPriceResult).offers);
         }
       } catch {
         // 自動取得の失敗は静かに諦める（下の「定価を再取得する」で再試行できる）
@@ -152,7 +152,7 @@ export default function HistoryDetailPage() {
           ? { officialPrice: refreshed.officialPrice, officialPriceIsManual: false }
           : {}),
       });
-      setLowestMarketPrice(refreshed.lowestMarketPrice);
+      setOffers(refreshed.offers);
     } catch (err) {
       setRefreshError(err instanceof Error ? err.message : "定価の再取得に失敗しました");
     } finally {
@@ -312,9 +312,9 @@ export default function HistoryDetailPage() {
                     <span className="w-3 h-3 border-2 border-gray-300 border-t-transparent rounded-full animate-spin" />
                     取得中...
                   </span>
-                ) : lowestMarketPrice !== null ? (
+                ) : offers.length > 0 ? (
                   <span className="text-2xl font-normal text-gray-900 mt-1 block">
-                    ¥{lowestMarketPrice.toLocaleString()}
+                    ¥{offers[0].price.toLocaleString()}
                   </span>
                 ) : (
                   <span className="text-sm text-gray-400 mt-1 block">取得できませんでした</span>
@@ -389,6 +389,59 @@ export default function HistoryDetailPage() {
                 )}
               </div>
             </div>
+
+            {/* ショップリスト（最安値TOP3。スキャン結果画面と同じ表示） */}
+            {offers.length > 0 && (
+              <div className="space-y-2.5">
+                <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                  同一商品ショップ（本体価格順）
+                </h3>
+                <div className="divide-y divide-gray-100 border border-gray-100 rounded-xl overflow-hidden bg-gray-50">
+                  {offers.map((offer, index) => (
+                    <a
+                      key={index}
+                      href={offer.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between p-3.5 bg-white active:bg-gray-50 transition-colors group"
+                    >
+                      <div className="flex items-center gap-2.5 max-w-[65%]">
+                        <span className={`text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full ${index === 0 ? "bg-amber-100 text-amber-700" :
+                          index === 1 ? "bg-slate-200 text-slate-700" :
+                            "bg-orange-100 text-orange-700"
+                          }`}>
+                          {index + 1}
+                        </span>
+                        <div className="truncate">
+                          <span className="text-sm font-bold text-gray-700 block truncate">
+                            {offer.storeName}
+                          </span>
+                          <span className="text-[11px] text-gray-400 block mt-0.5">
+                            送料: {
+                              offer.shippingFee === 0
+                                ? (offer.isConditional ? "無料（※条件付の可能性あり）" : "無料")
+                                : `¥${offer.shippingFee}`
+                            }
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        <div className="text-right">
+                          <span className="text-xs text-gray-400 block font-normal">商品価格</span>
+                          <span className="text-lg font-normal text-gray-900">
+                            ¥{offer.price.toLocaleString()}
+                          </span>
+                        </div>
+                        <span className="text-xs text-gray-300">
+                          ›
+                        </span>
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* 定価再取得 */}
             <div className="space-y-1.5">
