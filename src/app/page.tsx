@@ -279,6 +279,9 @@ export default function Home() {
           <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
             ガンプラ定価チェッカー
           </h1>
+          <h1 className="text-sm text-gray-500 mt-1">
+            v{APP_VERSION}
+          </h1>
           <p className="text-sm text-gray-500 mt-1">カメラをバーコードにかざして転売価格を見破る</p>
         </div>
         <Link
@@ -294,9 +297,14 @@ export default function Home() {
         {/* 読取り店舗の選択。店舗数が増えてもチップが折り返して縦に伸びないよう、
             ドロップダウンで1行に収めている。削除は選択中の店舗のみ、隣の「削除」ボタンから行う */}
         <div className="space-y-2">
-          <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">
-            読取り店舗
-          </span>
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+              読取り店舗
+            </span>
+            <Link href="/stores" className="text-[11px] font-bold text-blue-600 active:text-blue-700">
+              店舗管理（住所・地図）
+            </Link>
+          </div>
           {stores.length > 0 ? (
             <div className="flex gap-2">
               <select
@@ -308,8 +316,8 @@ export default function Home() {
                   店舗を選択してください
                 </option>
                 {stores.map((store) => (
-                  <option key={store} value={store}>
-                    {store}
+                  <option key={store.name} value={store.name}>
+                    {store.name}
                   </option>
                 ))}
               </select>

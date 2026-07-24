@@ -207,6 +207,7 @@ export default function HistoryPage() {
 
   const stores = useMemo(() => {
     const unique = Array.from(new Set(entries.map((e) => e.storeName)));
+    unique.sort((a, b) => a.localeCompare(b, "ja"));
     return ["すべて", ...unique];
   }, [entries]);
 
