@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useSyncExternalStore } from "react";
+import { useState, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { BrowserMultiFormatReader, Result, Exception } from "@zxing/library";
@@ -8,6 +8,7 @@ import { useCheckPrice } from "@/hooks/useCheckPrice";
 import { useFavoriteStores } from "@/hooks/useFavoriteStores";
 import { useSelectedStore } from "@/hooks/useSelectedStore";
 import { updateStorePrice, fetchScanHistory } from "@/lib/supabase/scanHistory";
+import { compareJa } from "@/utils/sort";
 import { KitSearchResultItem } from "@/types";
 
 // スキャンごとにkey={scanHistoryId}で再マウントさせ、入力状態を自然にリセットする
@@ -229,9 +230,18 @@ export default function Home() {
     });
   }, []);
 
-  const storeNames = Array.from(
-    new Set([...stores.map((s) => s.name), ...historyStoreNames])
-  ).sort((a, b) => a.localeCompare(b, "ja"));
+  const storeNames = useMemo(
+    () => Array.from(new Set([...stores.map((s) => s.name), ...historyStoreNames])).sort(compareJa),
+    [stores, historyStoreNames]
+  );
+
+  // バーコード検出コールバック内でstoresの最新値を読むための参照。カメラ起動用
+  // useEffectの依存配列にstoresを含めると、店舗一覧が再取得されるたびにカメラの
+  // ストリームが再起動してしまうため、依存はisScanning等に絞りrefで最新値を渡す
+  const storesRef = useRef(stores);
+  useEffect(() => {
+    storesRef.current = stores;
+  }, [stores]);
 
   const handleAddStore = () => {
     const trimmed = newStoreName.trim();
@@ -274,7 +284,7 @@ export default function Home() {
               setIsScanning(false); // スキャンを一旦停止
               // 選択中の店舗名がstoresテーブルに登録済みならidも渡し、リネーム後の
               // 表示追従を効かせる（未登録の履歴由来の名前を選んだ場合はnullのまま）
-              const storeId = stores.find((s) => s.name === selectedStore)?.id ?? null;
+              const storeId = storesRef.current.find((s) => s.name === selectedStore)?.id ?? null;
               checkPrice(jan, selectedStore ?? "", storeId); // 価格チェックAPIを叩く
             }
           }
@@ -300,7 +310,7 @@ export default function Home() {
         codeReaderRef.current.reset();
       }
     };
-  }, [isScanning, checkPrice, selectedStore, stores]);
+  }, [isScanning, checkPrice, selectedStore]);
 
   // スキャンの再試行
   const handleResetScan = () => {

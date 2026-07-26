@@ -1,7 +1,8 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { fetchStores, insertStore, updateStoreRecord, deleteStoreRecord, StoreInput } from '@/lib/supabase/stores'
+import { useCallback, useEffect, useState } from 'react'
+import { fetchStores, insertStore, insertStores, updateStoreRecord, deleteStoreRecord, StoreInput } from '@/lib/supabase/stores'
+import { compareJa } from '@/utils/sort'
 
 // 旧バージョンで使っていたlocalStorageキー。DBに何も登録されていない場合のみ、
 // 一度だけこのデータをDBへ移行する（後方互換・端末に残っていた登録内容を失わないため）
@@ -24,7 +25,7 @@ function normalizeUrl(raw: string): string {
 }
 
 function sortByName(stores: FavoriteStore[]): FavoriteStore[] {
-  return [...stores].sort((a, b) => a.name.localeCompare(b.name, 'ja'))
+  return [...stores].sort((a, b) => compareJa(a.name, b.name))
 }
 
 // 旧バージョンは店舗名だけのstring[]、その後は{name,address,url}[]で
@@ -58,30 +59,22 @@ function readLegacyLocalStores(): StoreInput[] {
 // 初回アクセス時にDBが空ならlocalStorageの内容を一度だけ移行する）
 export function useFavoriteStores() {
   const [stores, setStores] = useState<FavoriteStore[]>([])
-  const storesRef = useRef<FavoriteStore[]>([])
-
-  useEffect(() => {
-    storesRef.current = stores
-  }, [stores])
 
   useEffect(() => {
     let cancelled = false
 
     async function load() {
       const remote = await fetchStores()
-      if (remote.length === 0) {
-        const legacy = readLegacyLocalStores()
-        if (legacy.length > 0) {
-          for (const store of legacy) {
-            await insertStore(store)
-          }
-          window.localStorage.removeItem(LEGACY_STORAGE_KEY)
-          const migrated = await fetchStores()
-          if (!cancelled) setStores(sortByName(migrated))
-          return
-        }
+      const legacy = remote.length === 0 ? readLegacyLocalStores() : []
+      if (legacy.length === 0) {
+        if (!cancelled) setStores(sortByName(remote))
+        return
       }
-      if (!cancelled) setStores(sortByName(remote))
+
+      await insertStores(legacy)
+      window.localStorage.removeItem(LEGACY_STORAGE_KEY)
+      const migrated = await fetchStores()
+      if (!cancelled) setStores(sortByName(migrated))
     }
 
     load()
@@ -93,17 +86,17 @@ export function useFavoriteStores() {
   const addStore = useCallback(async (name: string, address = '', url = '') => {
     const trimmed = name.trim()
     if (!trimmed) return
-    if (storesRef.current.some((s) => s.name === trimmed)) return
+    if (stores.some((s) => s.name === trimmed)) return
 
     const created = await insertStore({ name: trimmed, address: address.trim(), url: normalizeUrl(url) })
     if (created) setStores((prev) => sortByName([...prev, created]))
-  }, [])
+  }, [stores])
 
   const removeStore = useCallback(async (name: string) => {
-    if (!storesRef.current.some((s) => s.name === name)) return
+    if (!stores.some((s) => s.name === name)) return
     const ok = await deleteStoreRecord(name)
     if (ok) setStores((prev) => prev.filter((s) => s.name !== name))
-  }, [])
+  }, [stores])
 
   // 店舗名・住所・URLを編集する。店舗名を変更しても、既にDBに記録済みの
   // scan_history.store_name（文字列として保存済み）は遡って変わらないが、
@@ -111,9 +104,9 @@ export function useFavoriteStores() {
   const updateStore = useCallback(async (originalName: string, updated: StoreInput) => {
     const trimmedName = updated.name.trim()
     if (!trimmedName) return
-    if (!storesRef.current.some((s) => s.name === originalName)) return
+    if (!stores.some((s) => s.name === originalName)) return
     // 既存の別店舗と同じ名前への変更は重複を避けるため何もしない
-    if (trimmedName !== originalName && storesRef.current.some((s) => s.name === trimmedName)) return
+    if (trimmedName !== originalName && stores.some((s) => s.name === trimmedName)) return
 
     const normalized = { name: trimmedName, address: updated.address.trim(), url: normalizeUrl(updated.url) }
     const ok = await updateStoreRecord(originalName, normalized)
@@ -122,7 +115,7 @@ export function useFavoriteStores() {
         sortByName(prev.map((s) => (s.name === originalName ? { ...s, ...normalized } : s)))
       )
     }
-  }, [])
+  }, [stores])
 
   return { stores, addStore, removeStore, updateStore }
 }

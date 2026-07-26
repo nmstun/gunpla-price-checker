@@ -6,6 +6,7 @@ import Link from "next/link";
 import { fetchScanHistory, deleteScanHistoryEntry } from "@/lib/supabase/scanHistory";
 import { useSelectedStore } from "@/hooks/useSelectedStore";
 import { detectGrade } from "@/utils/grade";
+import { compareJa } from "@/utils/sort";
 import { ScanHistoryEntry } from "@/types";
 
 const DELETE_WIDTH = 88;
@@ -207,7 +208,7 @@ export default function HistoryPage() {
 
   const stores = useMemo(() => {
     const unique = Array.from(new Set(entries.map((e) => e.storeName)));
-    unique.sort((a, b) => a.localeCompare(b, "ja"));
+    unique.sort(compareJa);
     return ["すべて", ...unique];
   }, [entries]);
 

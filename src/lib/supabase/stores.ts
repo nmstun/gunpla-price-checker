@@ -55,6 +55,21 @@ export async function insertStore(store: StoreInput): Promise<StoreRecord | null
   return data ? mapRow(data as StoreRow) : null
 }
 
+// 旧localStorageからの一括移行用。1件ずつinsertするとN回の往復が発生するため、
+// まとめて1回のinsertで登録する（登録後のid付きレコードは呼び出し元では使わないため返さない）
+export async function insertStores(stores: StoreInput[]): Promise<boolean> {
+  if (stores.length === 0) return true
+  const supabase = createBrowserClient()
+  if (!supabase) return false
+
+  const { error } = await supabase.from('stores').insert(stores)
+  if (error) {
+    console.error('店舗の一括追加に失敗:', error)
+    return false
+  }
+  return true
+}
+
 export async function updateStoreRecord(originalName: string, updated: StoreInput): Promise<boolean> {
   const supabase = createBrowserClient()
   if (!supabase) return false
