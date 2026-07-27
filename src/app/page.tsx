@@ -9,6 +9,7 @@ import { useFavoriteStores } from "@/hooks/useFavoriteStores";
 import { useSelectedStore } from "@/hooks/useSelectedStore";
 import { updateStorePrice, fetchScanHistory } from "@/lib/supabase/scanHistory";
 import { compareJa } from "@/utils/sort";
+import { formatShipping, formatYen } from "@/utils/price";
 import { KitSearchResultItem } from "@/types";
 
 // スキャンごとにkey={scanHistoryId}で再マウントさせ、入力状態を自然にリセットする
@@ -330,19 +331,21 @@ export default function Home() {
         paddingRight: "max(1rem, env(safe-area-inset-right))",
       }}
     >
-      <header className="mb-6 w-full max-w-md flex items-center justify-between">
-        <div>
+      {/* タイトルと戻り導線を同じ行に並べ、説明文は次の行で幅を使い切らせる。
+          横並びのままだと狭い画面でタイトル・説明文が細かく折り返してしまうため */}
+      <header className="mb-6 w-full max-w-md">
+        <div className="flex items-start justify-between gap-3">
           <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
             ガンプラ定価チェッカー
           </h1>
-          <p className="text-sm text-gray-500 mt-1">カメラをバーコードにかざして転売価格を見破る</p>
+          <Link
+            href="/history"
+            className="shrink-0 text-sm font-bold text-blue-600 hover:text-blue-700 px-3 py-1.5 -mr-3 rounded-lg active:bg-blue-50"
+          >
+            履歴
+          </Link>
         </div>
-        <Link
-          href="/history"
-          className="shrink-0 text-sm font-bold text-blue-600 hover:text-blue-700 px-3 py-2 -mr-3 rounded-lg active:bg-blue-50"
-        >
-          履歴
-        </Link>
+        <p className="text-sm text-gray-500 mt-1">カメラをバーコードにかざして転売価格を見破る</p>
       </header>
 
       <main className="w-full max-w-md bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-6">
@@ -552,40 +555,26 @@ export default function Home() {
                       href={offer.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center justify-between p-3.5 bg-white active:bg-gray-50 transition-colors group"
+                      className="flex items-center gap-2.5 p-3.5 bg-white active:bg-gray-50 transition-colors"
                     >
-                      <div className="flex items-center gap-2.5 max-w-[65%]">
-                        <span className={`text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full ${index === 0 ? "bg-amber-100 text-amber-700" :
-                          index === 1 ? "bg-slate-200 text-slate-700" :
-                            "bg-orange-100 text-orange-700"
-                          }`}>
-                          {index + 1}
+                      <span className={`shrink-0 text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full ${index === 0 ? "bg-amber-100 text-amber-700" :
+                        index === 1 ? "bg-slate-200 text-slate-700" :
+                          "bg-orange-100 text-orange-700"
+                        }`}>
+                        {index + 1}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-sm font-bold text-gray-700 block truncate">
+                          {offer.storeName}
                         </span>
-                        <div className="truncate">
-                          <span className="text-sm font-bold text-gray-700 block truncate">
-                            {offer.storeName}
-                          </span>
-                          <span className="text-[11px] text-gray-400 block mt-0.5">
-                            送料: {
-                              offer.shippingFee === 0
-                                ? (offer.isConditional ? "無料（※条件付の可能性あり）" : "無料")
-                                : `¥${offer.shippingFee}`
-                            }
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-1.5">
-                        <div className="text-right">
-                          <span className="text-xs text-gray-400 block font-normal">商品価格</span>
-                          <span className="text-lg font-normal text-gray-900">
-                            ¥{offer.price.toLocaleString()}
-                          </span>
-                        </div>
-                        <span className="text-xs text-gray-300">
-                          ›
+                        <span className="text-[11px] text-gray-400 block mt-0.5 truncate">
+                          {formatShipping(offer.shippingFee, offer.isConditional)}
                         </span>
                       </div>
+                      <span className="shrink-0 text-lg font-normal text-gray-900 tabular-nums">
+                        {formatYen(offer.price)}
+                      </span>
+                      <span className="shrink-0 text-xs text-gray-300">›</span>
                     </a>
                   ))}
                 </div>

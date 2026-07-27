@@ -7,12 +7,13 @@ import { fetchScanHistory, deleteScanHistoryEntry } from "@/lib/supabase/scanHis
 import { useSelectedStore } from "@/hooks/useSelectedStore";
 import { detectGrade } from "@/utils/grade";
 import { compareJa } from "@/utils/sort";
+import { comparePrices, formatYen, VERDICT_PILL_CLASS } from "@/utils/price";
 import { ScanHistoryEntry } from "@/types";
 
 const DELETE_WIDTH = 88;
 
-// 定価・店舗価格の両方が分かっている場合は差額（店舗価格 - 定価）も添える。
-// プラスなら定価より高い＝プレ値、マイナスなら定価より安い、という色分け
+// 定価・店舗価格の両方が分かっている場合は「定価 → 店頭価格」の並びに差額バッジを添える。
+// 一覧をスクロールしながらプレ値かどうかを拾えるよう、差額は右端に色付きバッジで固定表示する
 function PriceSummary({
   officialPrice,
   officialPriceIsManual,
@@ -34,35 +35,40 @@ function PriceSummary({
   }
 
   if (officialPrice !== null && storePrice !== null) {
-    const diff = storePrice - officialPrice;
-    const diffColor = diff > 0 ? "text-red-600" : diff < 0 ? "text-green-600" : "text-gray-400";
-    const diffLabel =
-      diff > 0 ? `+¥${diff.toLocaleString()}` : diff < 0 ? `-¥${Math.abs(diff).toLocaleString()}` : "±0";
+    const comparison = comparePrices(officialPrice, storePrice);
     return (
-      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-        <span className="text-sm text-gray-900">定価 ¥{officialPrice.toLocaleString()}</span>
-        <span className="text-sm text-gray-900">店舗 ¥{storePrice.toLocaleString()}</span>
-        <span className={`text-xs font-medium ${diffColor}`}>{diffLabel}</span>
-        {officialPriceIsManual && (
-          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">手動</span>
-        )}
+      <div className="flex items-center justify-between gap-2">
+        <span className="min-w-0 truncate text-xs text-gray-500 tabular-nums">
+          定価 {formatYen(officialPrice)}
+          <span className="mx-1 text-gray-300">→</span>
+          <span className="text-sm font-bold text-gray-900">{formatYen(storePrice)}</span>
+        </span>
+        <span
+          className={`shrink-0 text-xs font-bold px-2 py-1 rounded-lg tabular-nums ${VERDICT_PILL_CLASS[comparison.verdict]}`}
+        >
+          {comparison.diffLabel}
+        </span>
       </div>
     );
   }
 
   if (officialPrice !== null) {
     return (
-      <div className="flex items-center justify-between">
-        <span className="text-sm text-gray-900">¥{officialPrice.toLocaleString()}</span>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs text-gray-500 tabular-nums">
+          定価 <span className="text-sm font-bold text-gray-900">{formatYen(officialPrice)}</span>
+        </span>
         {officialBadge}
       </div>
     );
   }
 
   return (
-    <div className="flex items-center justify-between">
-      <span className="text-sm text-gray-900">¥{storePrice!.toLocaleString()}</span>
-      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-gray-200 text-gray-600">店舗価格</span>
+    <div className="flex items-center justify-between gap-2">
+      <span className="text-xs text-gray-500 tabular-nums">
+        店頭 <span className="text-sm font-bold text-gray-900">{formatYen(storePrice!)}</span>
+      </span>
+      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500">定価未確認</span>
     </div>
   );
 }
@@ -233,61 +239,74 @@ export default function HistoryPage() {
         paddingRight: "max(1rem, env(safe-area-inset-right))",
       }}
     >
-      <header className="mb-6 w-full max-w-md flex items-center justify-between">
-        <div>
+      <header className="mb-6 w-full max-w-md">
+        <div className="flex items-start justify-between gap-3">
           <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
             スキャン履歴
           </h1>
-          <p className="text-sm text-gray-500 mt-1">タップして詳細・最安値を確認</p>
+          <Link
+            href="/"
+            className="shrink-0 text-sm font-bold text-blue-600 hover:text-blue-700 px-3 py-1.5 -mr-3 rounded-lg active:bg-blue-50"
+          >
+            スキャンへ戻る
+          </Link>
         </div>
-        <Link
-          href="/"
-          className="shrink-0 text-sm font-bold text-blue-600 hover:text-blue-700 px-3 py-2 -mr-3 rounded-lg active:bg-blue-50"
-        >
-          スキャンへ戻る
-        </Link>
+        <p className="text-sm text-gray-500 mt-1">タップして詳細・最安値を確認</p>
       </header>
 
       <main className="w-full max-w-md bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-4">
-        <div className="flex justify-end">
-          <Link href="/stores" className="text-[11px] font-bold text-blue-600 active:text-blue-700">
-            店舗管理（住所・地図）
-          </Link>
+        {/* 絞り込みツールバー。店舗管理への導線もここにまとめ、カード内で
+            リンクだけが宙に浮いて見えないようにしている */}
+        <div className="space-y-2">
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">絞り込み</span>
+            <Link
+              href="/stores"
+              className="shrink-0 text-[11px] font-bold text-blue-600 active:text-blue-700"
+            >
+              店舗管理（住所・地図）→
+            </Link>
+          </div>
+
+          {(stores.length > 1 || grades.length > 1) && (
+            <div className="flex gap-2">
+              {stores.length > 1 && (
+                <select
+                  aria-label="店舗で絞り込む"
+                  value={selectedStore}
+                  onChange={(e) => setSharedStore(e.target.value === "すべて" ? null : e.target.value)}
+                  className="flex-[3] min-w-0 text-sm text-gray-900 px-3 py-2.5 rounded-lg border border-gray-200 bg-white focus:outline-none focus:border-blue-400"
+                >
+                  {stores.map((store) => (
+                    <option key={store} value={store}>
+                      {store === "すべて" ? "すべての店舗" : store}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {grades.length > 1 && (
+                <select
+                  aria-label="グレードで絞り込む"
+                  value={selectedGrade}
+                  onChange={(e) => setSelectedGrade(e.target.value)}
+                  className="flex-[2] min-w-0 text-sm text-gray-900 px-3 py-2.5 rounded-lg border border-gray-200 bg-white focus:outline-none focus:border-blue-400"
+                >
+                  {grades.map((grade) => (
+                    <option key={grade} value={grade}>
+                      {grade === "すべて" ? "全グレード" : grade}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
         </div>
 
-        {(stores.length > 1 || grades.length > 1) && (
-          <div className="flex gap-2">
-            {stores.length > 1 && (
-              <select
-                value={selectedStore}
-                onChange={(e) => setSharedStore(e.target.value === "すべて" ? null : e.target.value)}
-                className="flex-1 min-w-0 text-base text-gray-900 px-3 py-2.5 rounded-lg border border-gray-200 bg-white focus:outline-none focus:border-blue-400"
-              >
-                {stores.map((store) => (
-                  <option key={store} value={store}>
-                    {store}
-                  </option>
-                ))}
-              </select>
-            )}
-            {grades.length > 1 && (
-              <select
-                value={selectedGrade}
-                onChange={(e) => setSelectedGrade(e.target.value)}
-                className="flex-1 min-w-0 text-base text-gray-900 px-3 py-2.5 rounded-lg border border-gray-200 bg-white focus:outline-none focus:border-blue-400"
-              >
-                {grades.map((grade) => (
-                  <option key={grade} value={grade}>
-                    {grade === "すべて" ? "すべてのグレード" : grade}
-                  </option>
-                ))}
-              </select>
-            )}
-          </div>
-        )}
-
         {!loading && filteredEntries.length > 0 && (
-          <p className="text-[11px] text-gray-400 text-center">左にスワイプすると削除できます</p>
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="text-xs text-gray-400 tabular-nums">{filteredEntries.length}件</span>
+            <span className="text-[11px] text-gray-400">左にスワイプで削除</span>
+          </div>
         )}
 
         {loading && (

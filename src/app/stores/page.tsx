@@ -13,14 +13,21 @@ function CombinedStoreMap({ addresses }: { addresses: string[] }) {
   if (addresses.length === 0) return null;
   const src = `https://maps.google.com/maps?q=${encodeURIComponent(addresses.join("|"))}&output=embed`;
   return (
-    <iframe
-      src={src}
-      className="w-full h-64 rounded-lg border border-gray-200"
-      style={{ border: 0 }}
-      loading="eager"
-      referrerPolicy="no-referrer-when-downgrade"
-      title="住所登録された店舗の地図"
-    />
+    // 読み込み中は地図が真っ白に見えて壊れたように感じるため、背景に控えめな
+    // プレースホルダを敷き、その上にiframeを重ねて読み込み完了時に自然に置き換わるようにする
+    <div className="relative w-full h-64 rounded-lg border border-gray-200 overflow-hidden bg-gray-100">
+      <span className="absolute inset-0 flex items-center justify-center text-xs text-gray-400">
+        地図を読み込み中...
+      </span>
+      <iframe
+        src={src}
+        className="relative w-full h-full"
+        style={{ border: 0 }}
+        loading="eager"
+        referrerPolicy="no-referrer-when-downgrade"
+        title="住所登録された店舗の地図"
+      />
+    </div>
   );
 }
 
@@ -63,10 +70,13 @@ export default function StoresPage() {
     setEditingName(null);
   };
 
-  const handleDelete = (name: string) => {
-    removeStore(name);
-    if (selectedStore === name) setSelectedStore(null);
-    if (editingName === name) setEditingName(null);
+  // 削除は取り消せず、住所やURLの登録内容も一緒に失われるため確認を挟む
+  const handleDelete = (store: FavoriteStore) => {
+    const ok = window.confirm(`「${store.name}」を削除しますか？\n住所・URLの登録内容も削除されます（スキャン履歴は残ります）。`);
+    if (!ok) return;
+    removeStore(store.name);
+    if (selectedStore === store.name) setSelectedStore(null);
+    if (editingName === store.name) setEditingName(null);
   };
 
   const handleAdd = () => {
@@ -85,17 +95,17 @@ export default function StoresPage() {
         paddingRight: "max(1rem, env(safe-area-inset-right))",
       }}
     >
-      <header className="mb-6 w-full max-w-md flex items-center justify-between">
-        <div>
+      <header className="mb-6 w-full max-w-md">
+        <div className="flex items-start justify-between gap-3">
           <h1 className="text-2xl font-bold text-gray-900 tracking-tight">店舗管理</h1>
-          <p className="text-sm text-gray-500 mt-1">住所を登録した店舗は地図にまとめて表示されます</p>
+          <Link
+            href="/history"
+            className="shrink-0 text-sm font-bold text-blue-600 hover:text-blue-700 px-3 py-1.5 -mr-3 rounded-lg active:bg-blue-50"
+          >
+            履歴へ戻る
+          </Link>
         </div>
-        <Link
-          href="/history"
-          className="shrink-0 text-sm font-bold text-blue-600 hover:text-blue-700 px-3 py-2 -mr-3 rounded-lg active:bg-blue-50"
-        >
-          履歴へ戻る
-        </Link>
+        <p className="text-sm text-gray-500 mt-1">住所を登録した店舗は地図にまとめて表示されます</p>
       </header>
 
       <main className="w-full max-w-md bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-4">
@@ -159,41 +169,44 @@ export default function StoresPage() {
                     </div>
                   </div>
                 ) : (
-                  <>
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="text-base font-bold text-gray-900 leading-snug">{store.name}</p>
-                        {store.address && (
-                          <p className="text-xs text-gray-500 mt-0.5 leading-snug">{store.address}</p>
-                        )}
-                        {store.url && (
-                          <a
-                            href={store.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs text-blue-600 mt-0.5 block truncate active:text-blue-700"
-                          >
-                            {store.url}
-                          </a>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <button
-                          onClick={() => handleStartEdit(store)}
-                          className="text-xs font-bold px-2 py-1 rounded-full bg-gray-200 text-gray-600 active:bg-gray-300 transition"
+                  // 店舗名は長くなりがちなので幅を使い切らせ、操作ボタンは
+                  // 名前と競合しないよう下の行に置く。削除は取り消せないため確認を挟み、
+                  // 誤タップを誘わないよう編集より控えめな見た目にしている
+                  <div className="space-y-2">
+                    <div className="min-w-0">
+                      <p className="text-base font-bold text-gray-900 leading-snug">{store.name}</p>
+                      {store.address ? (
+                        <p className="text-xs text-gray-500 mt-1 leading-snug">{store.address}</p>
+                      ) : (
+                        <p className="text-xs text-gray-400 mt-1">住所未登録（地図に表示されません）</p>
+                      )}
+                      {store.url && (
+                        <a
+                          href={store.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-blue-600 mt-1 block truncate active:text-blue-700"
                         >
-                          編集
-                        </button>
-                        <button
-                          onClick={() => handleDelete(store.name)}
-                          aria-label={`${store.name}を削除`}
-                          className="text-xs font-bold px-2 py-1 rounded-full bg-red-100 text-red-600 active:bg-red-200 transition"
-                        >
-                          削除
-                        </button>
-                      </div>
+                          {store.url}
+                        </a>
+                      )}
                     </div>
-                  </>
+                    <div className="flex items-center gap-2 pt-1 border-t border-gray-200/70">
+                      <button
+                        onClick={() => handleStartEdit(store)}
+                        className="mt-1 text-xs font-bold px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-gray-700 active:bg-gray-100 transition"
+                      >
+                        編集
+                      </button>
+                      <button
+                        onClick={() => handleDelete(store)}
+                        aria-label={`${store.name}を削除`}
+                        className="mt-1 text-xs font-bold px-3 py-1.5 rounded-lg text-red-600 active:bg-red-50 transition"
+                      >
+                        削除
+                      </button>
+                    </div>
+                  </div>
                 )}
               </div>
             ))}
