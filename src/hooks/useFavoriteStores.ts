@@ -1,7 +1,16 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { fetchStores, insertStore, insertStores, updateStoreRecord, deleteStoreRecord, StoreInput } from '@/lib/supabase/stores'
+import {
+  fetchStores,
+  insertStore,
+  insertStores,
+  updateStoreRecord,
+  deleteStoreRecord,
+  geocodeAddress,
+  saveStoreCoordinates,
+  StoreInput,
+} from '@/lib/supabase/stores'
 import { compareJa } from '@/utils/sort'
 
 // 旧バージョンで使っていたlocalStorageキー。DBに何も登録されていない場合のみ、
@@ -13,6 +22,8 @@ export interface FavoriteStore {
   name: string
   address: string
   url: string
+  latitude: number | null
+  longitude: number | null
 }
 
 // "example.com"のようにプロトコルなしで入力されると<a href>が相対パス扱いになり
@@ -57,7 +68,7 @@ function readLegacyLocalStores(): StoreInput[] {
 // 店舗一覧をDB（Supabaseのstoresテーブル）に保存する。端末・ブラウザをまたいで
 // 共有するためlocalStorageではなくDBを使う（以前はlocalStorage単独管理だったため、
 // 初回アクセス時にDBが空ならlocalStorageの内容を一度だけ移行する）
-export function useFavoriteStores() {
+export function useFavoriteStores({ geocodeMissing = false }: { geocodeMissing?: boolean } = {}) {
   const [stores, setStores] = useState<FavoriteStore[]>([])
 
   useEffect(() => {
@@ -66,22 +77,50 @@ export function useFavoriteStores() {
     async function load() {
       const remote = await fetchStores()
       const legacy = remote.length === 0 ? readLegacyLocalStores() : []
-      if (legacy.length === 0) {
-        if (!cancelled) setStores(sortByName(remote))
-        return
-      }
+      let current = remote
 
-      await insertStores(legacy)
-      window.localStorage.removeItem(LEGACY_STORAGE_KEY)
-      const migrated = await fetchStores()
-      if (!cancelled) setStores(sortByName(migrated))
+      if (legacy.length > 0) {
+        await insertStores(legacy)
+        window.localStorage.removeItem(LEGACY_STORAGE_KEY)
+        current = await fetchStores()
+      }
+      if (cancelled) return
+      setStores(sortByName(current))
+
+      // 座標対応前に登録された店舗は緯度経度を持たないため、住所があるものだけ
+      // ここで変換して保存し直す（次回以降は変換不要になる）。地図に出せるように
+      // するための後追い処理なので、失敗しても一覧表示自体は妨げない。
+      // 地図を出す画面でだけ走らせ、座標を使わない画面から無駄に外部APIを叩かないようにする
+      if (!geocodeMissing) return
+      const missing = current.filter((s) => s.address.trim() && s.latitude === null)
+      if (missing.length === 0) return
+
+      const geocoded = await Promise.all(
+        missing.map(async (store) => ({ store, coordinates: await geocodeAddress(store.address) }))
+      )
+      if (cancelled) return
+
+      const resolved = geocoded.filter((entry) => entry.coordinates !== null)
+      if (resolved.length === 0) return
+
+      await Promise.all(
+        resolved.map((entry) => saveStoreCoordinates(entry.store.id, entry.coordinates!))
+      )
+      if (cancelled) return
+
+      setStores((prev) =>
+        prev.map((store) => {
+          const hit = resolved.find((entry) => entry.store.id === store.id)
+          return hit ? { ...store, ...hit.coordinates! } : store
+        })
+      )
     }
 
     load()
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [geocodeMissing])
 
   const addStore = useCallback(async (name: string, address = '', url = '') => {
     const trimmed = name.trim()
@@ -109,11 +148,9 @@ export function useFavoriteStores() {
     if (trimmedName !== originalName && stores.some((s) => s.name === trimmedName)) return
 
     const normalized = { name: trimmedName, address: updated.address.trim(), url: normalizeUrl(updated.url) }
-    const ok = await updateStoreRecord(originalName, normalized)
-    if (ok) {
-      setStores((prev) =>
-        sortByName(prev.map((s) => (s.name === originalName ? { ...s, ...normalized } : s)))
-      )
+    const saved = await updateStoreRecord(originalName, normalized)
+    if (saved) {
+      setStores((prev) => sortByName(prev.map((s) => (s.name === originalName ? saved : s))))
     }
   }, [stores])
 

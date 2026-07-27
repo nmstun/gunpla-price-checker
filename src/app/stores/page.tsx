@@ -1,35 +1,21 @@
 "use client";
 
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useFavoriteStores, FavoriteStore } from "@/hooks/useFavoriteStores";
 import { useSelectedStore } from "@/hooks/useSelectedStore";
 
-// APIキー不要のGoogle Mapsの簡易埋め込み形式（output=embed）を使う。
-// 公式のMaps Embed APIと違いキー登録が要らない反面、Google側の仕様変更で
-// 予告なく動かなくなる可能性がある非公式な使い方であることは承知の上で採用している。
-// 住所を"|"区切りで複数渡すと、1つの地図に複数ピンをまとめて表示できる（実測で確認済み）
-function CombinedStoreMap({ addresses }: { addresses: string[] }) {
-  if (addresses.length === 0) return null;
-  const src = `https://maps.google.com/maps?q=${encodeURIComponent(addresses.join("|"))}&output=embed`;
-  return (
-    // 読み込み中は地図が真っ白に見えて壊れたように感じるため、背景に控えめな
-    // プレースホルダを敷き、その上にiframeを重ねて読み込み完了時に自然に置き換わるようにする
-    <div className="relative w-full h-64 rounded-lg border border-gray-200 overflow-hidden bg-gray-100">
-      <span className="absolute inset-0 flex items-center justify-center text-xs text-gray-400">
-        地図を読み込み中...
-      </span>
-      <iframe
-        src={src}
-        className="relative w-full h-full"
-        style={{ border: 0 }}
-        loading="eager"
-        referrerPolicy="no-referrer-when-downgrade"
-        title="住所登録された店舗の地図"
-      />
+// Leafletは初期化時にwindow/documentを触るためサーバー側では実行できない。
+// クライアント側でだけ読み込む（地図は初期表示に必須ではないので遅延読み込みで十分）
+const StoreMap = dynamic(() => import("./StoreMap"), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-72 rounded-lg border border-gray-200 bg-gray-100 flex items-center justify-center text-xs text-gray-400">
+      地図を読み込み中...
     </div>
-  );
-}
+  ),
+});
 
 interface StoreFormValue {
   name: string;
@@ -40,15 +26,31 @@ interface StoreFormValue {
 const EMPTY_FORM: StoreFormValue = { name: "", address: "", url: "" };
 
 export default function StoresPage() {
-  const { stores, addStore, removeStore, updateStore } = useFavoriteStores();
+  // この画面だけが地図を出すので、座標が未設定の店舗の補完もここで行う
+  const { stores, addStore, removeStore, updateStore } = useFavoriteStores({ geocodeMissing: true });
   const { selectedStore, setSelectedStore } = useSelectedStore();
 
   const [editingName, setEditingName] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<StoreFormValue>(EMPTY_FORM);
   const [newStore, setNewStore] = useState<StoreFormValue>(EMPTY_FORM);
 
-  // 地図には、住所が登録されている店舗をすべて表示する
-  const mapAddresses = stores.filter((s) => s.address.trim()).map((s) => s.address);
+  // 地図には、住所から座標を解決できた店舗をすべてピン表示する
+  const mappedStores = stores
+    .filter((s) => s.latitude !== null && s.longitude !== null)
+    .map((s) => ({
+      id: s.id,
+      name: s.name,
+      address: s.address,
+      latitude: s.latitude as number,
+      longitude: s.longitude as number,
+    }));
+  // 住所は入っているのに座標が取れなかった店舗（表記ゆれ等で変換できなかった）は
+  // 地図に出せないため、件数だけ伝えて住所を直せるようにする
+  const unmappedCount = stores.filter(
+    (s) => s.address.trim() && (s.latitude === null || s.longitude === null)
+  ).length;
+  // 地図のピン番号と一覧の対応が取れるよう、店舗idからピン番号を引けるようにしておく
+  const pinNumberByStoreId = new Map(mappedStores.map((s, index) => [s.id, index + 1]));
 
   const handleStartEdit = (store: FavoriteStore) => {
     setEditingName(store.name);
@@ -109,12 +111,19 @@ export default function StoresPage() {
       </header>
 
       <main className="w-full max-w-md bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-4">
-        {mapAddresses.length > 0 && (
+        {mappedStores.length > 0 && (
           <div className="space-y-1.5">
-            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider block">
-              住所登録された店舗
-            </span>
-            <CombinedStoreMap addresses={mapAddresses} />
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                店舗マップ
+              </span>
+              <span className="text-[11px] text-gray-400">{mappedStores.length}店舗</span>
+            </div>
+            <StoreMap stores={mappedStores} />
+            <p className="text-[11px] text-gray-400">
+              ピンの番号は下の一覧の並び順と対応しています。ピンをタップすると店舗名が表示されます
+              {unmappedCount > 0 && `／住所から場所を特定できなかった店舗が${unmappedCount}件あります`}
+            </p>
           </div>
         )}
 
@@ -174,9 +183,21 @@ export default function StoresPage() {
                   // 誤タップを誘わないよう編集より控えめな見た目にしている
                   <div className="space-y-2">
                     <div className="min-w-0">
-                      <p className="text-base font-bold text-gray-900 leading-snug">{store.name}</p>
+                      <div className="flex items-start gap-2">
+                        {pinNumberByStoreId.has(store.id) && (
+                          <span className="shrink-0 mt-0.5 w-5 h-5 flex items-center justify-center rounded-full bg-red-600 text-white text-[11px] font-bold">
+                            {pinNumberByStoreId.get(store.id)}
+                          </span>
+                        )}
+                        <p className="text-base font-bold text-gray-900 leading-snug">{store.name}</p>
+                      </div>
                       {store.address ? (
-                        <p className="text-xs text-gray-500 mt-1 leading-snug">{store.address}</p>
+                        <p className="text-xs text-gray-500 mt-1 leading-snug">
+                          {store.address}
+                          {!pinNumberByStoreId.has(store.id) && (
+                            <span className="text-gray-400">（地図に表示できませんでした）</span>
+                          )}
+                        </p>
                       ) : (
                         <p className="text-xs text-gray-400 mt-1">住所未登録（地図に表示されません）</p>
                       )}
