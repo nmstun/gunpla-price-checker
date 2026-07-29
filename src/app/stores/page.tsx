@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useFavoriteStores, FavoriteStore } from "@/hooks/useFavoriteStores";
 import { useSelectedStore } from "@/hooks/useSelectedStore";
+import { fetchScanHistory } from "@/lib/supabase/scanHistory";
+import { calculateStoreTendencies, formatDiffRatio, StoreTendency } from "@/utils/storeTendency";
 
 // Leafletは初期化時にwindow/documentを触るためサーバー側では実行できない。
 // クライアント側でだけ読み込む（地図は初期表示に必須ではないので遅延読み込みで十分）
@@ -33,6 +35,13 @@ export default function StoresPage() {
   const [editingName, setEditingName] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<StoreFormValue>(EMPTY_FORM);
   const [newStore, setNewStore] = useState<StoreFormValue>(EMPTY_FORM);
+
+  // 店舗ごとの値付け傾向。行く店を選ぶ材料になるので、店舗一覧と同じ画面に出す
+  const [tendencies, setTendencies] = useState<StoreTendency[]>([]);
+  useEffect(() => {
+    fetchScanHistory().then((entries) => setTendencies(calculateStoreTendencies(entries)));
+  }, []);
+  const tendencyByStoreName = new Map(tendencies.map((t) => [t.storeName, t]));
 
   // 地図には、住所から座標を解決できた店舗をすべてピン表示する
   const mappedStores = stores
@@ -211,6 +220,27 @@ export default function StoresPage() {
                           {store.url}
                         </a>
                       )}
+                      {/* この店の値付け傾向。定価と店頭価格の両方を記録した履歴からのみ算出する */}
+                      {(() => {
+                        const tendency = tendencyByStoreName.get(store.name);
+                        if (!tendency) return null;
+                        const tone =
+                          tendency.averageDiffRatio > 0
+                            ? "bg-red-50 text-red-700 ring-red-100"
+                            : tendency.averageDiffRatio < 0
+                              ? "bg-green-50 text-green-700 ring-green-100"
+                              : "bg-gray-100 text-gray-500 ring-gray-200";
+                        return (
+                          <div className="mt-2 flex items-center gap-2">
+                            <span className={`text-xs font-bold px-2 py-1 rounded-lg ring-1 tabular-nums ${tone}`}>
+                              定価比 平均 {formatDiffRatio(tendency.averageDiffRatio)}
+                            </span>
+                            <span className="text-[11px] text-gray-400 tabular-nums">
+                              {tendency.sampleCount}件中{tendency.markupCount}件がプレ値
+                            </span>
+                          </div>
+                        );
+                      })()}
                     </div>
                     <div className="flex items-center gap-2 pt-1 border-t border-gray-200/70">
                       <button
