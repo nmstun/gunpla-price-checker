@@ -32,8 +32,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: lookup.error }, { status: lookup.status })
     }
 
-    const lowestMarketPrice = lookup.offers[0]?.price ?? null
-
     if (shouldPersist) {
       if (lookup.officialPrice !== null) {
         await saveItem(janCode, lookup.itemName, lookup.officialPrice, lookup.isPremiumBandaiExclusive)
@@ -51,7 +49,6 @@ export async function POST(request: Request) {
     const result: RefreshPriceResult = {
       itemName: lookup.itemName,
       officialPrice: lookup.officialPrice,
-      lowestMarketPrice,
       offers: lookup.offers,
       lowestNewPrice: lookup.lowestNewPrice,
       lowestUsedPrice: lookup.lowestUsedPrice,

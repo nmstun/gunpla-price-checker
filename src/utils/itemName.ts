@@ -74,6 +74,16 @@ function toBigrams(str: string): string[] {
   return bigrams
 }
 
+function matchRatio(fromBigrams: string[], to: string): number {
+  if (fromBigrams.length === 0) return 1
+  return fromBigrams.filter((bigram) => to.includes(bigram)).length / fromBigrams.length
+}
+
+// 逆方向（対象名を分母にした一致率）で救済する際に必要な対象名の最低bigram数。
+// 極端に短い出品名は基準名の一部と偶然一致しやすく、分母が小さいぶん一致率が
+// 跳ね上がってしまうため、十分な長さがあるときだけ逆方向を使う
+const REVERSE_MATCH_MIN_BIGRAMS = 8
+
 // baseNameを基準に、targetNameが同一商品とみなせるかを判定する
 // （完全な部分一致、またはbigram一致率が閾値以上であればtrue）
 export function isNameMatching(baseName: string, targetName: string): boolean {
@@ -85,6 +95,14 @@ export function isNameMatching(baseName: string, targetName: string): boolean {
   const baseBigrams = toBigrams(base)
   if (baseBigrams.length === 0) return true
 
-  const matchCount = baseBigrams.filter((bigram) => target.includes(bigram)).length
-  return matchCount / baseBigrams.length >= MATCH_RATIO_THRESHOLD
+  if (matchRatio(baseBigrams, target) >= MATCH_RATIO_THRESHOLD) return true
+
+  // 基準名の側にだけシリーズ名などの余計な語が残っていると、基準名を分母にした
+  // 一致率が不当に下がって同一商品を取りこぼす（実測: 基準名「HG 1/144 機動戦士ガンダム
+  // 水星の魔女 デミバーディング」に対し、シリーズ名を含まない「HG 1/144 デミバーディング
+  // 【WM23】5065313」が一致率0.48で閾値0.5をわずかに下回り、在庫のある新品最安を
+  // 取りこぼしていた）。対象名を分母にした一致率でも救済する
+  const targetBigrams = toBigrams(target)
+  if (targetBigrams.length < REVERSE_MATCH_MIN_BIGRAMS) return false
+  return matchRatio(targetBigrams, base) >= MATCH_RATIO_THRESHOLD
 }
