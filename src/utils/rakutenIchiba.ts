@@ -3,7 +3,9 @@ import { Offer } from '@/types'
 // 楽天市場商品検索API。Yahoo!ショッピングAPIと違いJANコード専用の検索条件が無いため、
 // JANコードをキーワードとして投げる。商品説明文まで検索対象に含める必要があるので
 // field=0（絞り込みの弱い検索）を指定している
-const RAKUTEN_ENDPOINT = 'https://app.rakuten.co.jp/services/api/IchibaItem/Search/20220601'
+// 公式ドキュメントが現在案内しているエンドポイント（旧来の
+// app.rakuten.co.jp/services/api/... ではなく openapi.rakuten.co.jp 側）を使う
+const RAKUTEN_ENDPOINT = 'https://openapi.rakuten.co.jp/ichibams/api/IchibaItem/Search/20260701'
 
 const FETCH_TIMEOUT_MS = 8000
 
