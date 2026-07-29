@@ -1,4 +1,5 @@
 import { Offer } from '@/types'
+import { isUsedListing } from './itemName'
 
 // 名称の一致率フィルターを通す際の基準として信頼するストアID
 // （表記揺れが少なく、正規の定価に近い価格を出す量販店）
@@ -90,5 +91,7 @@ export function toOffer(hit: YahooHit): Offer {
     storeId: hit.seller?.sellerId || '',
     fixedPrice: hit.priceLabel?.fixedPrice ? Number(hit.priceLabel.fixedPrice) : 0,
     source: 'yahoo',
+    // 状態判定は加工前の出品名で行う（cleanItemNameは一致判定のため「中古」を削ってしまう）
+    condition: isUsedListing(hit.name) ? 'used' : 'new',
   }
 }

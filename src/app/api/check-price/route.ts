@@ -37,6 +37,9 @@ export async function POST(request: Request) {
         itemName: cached.itemName,
         officialPrice: cached.officialPrice,
         offers: [],
+        // キャッシュ経由では実売価格を取得しないため最安値も持たない
+        lowestNewPrice: null,
+        lowestUsedPrice: null,
         scanHistoryId,
         isPremiumBandaiExclusive: cached.isPremiumBandaiExclusive,
       }
@@ -68,6 +71,8 @@ export async function POST(request: Request) {
       itemName: lookup.itemName,
       officialPrice: lookup.officialPrice,
       offers: lookup.offers,
+      lowestNewPrice: lookup.lowestNewPrice,
+      lowestUsedPrice: lookup.lowestUsedPrice,
       scanHistoryId,
       isPremiumBandaiExclusive: lookup.isPremiumBandaiExclusive,
     }

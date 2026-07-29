@@ -11,6 +11,16 @@ export function hasPremiumBandaiMarker(names: string[]): boolean {
   return names.some((name) => PREMIUM_BANDAI_MARKER_PATTERN.test(name))
 }
 
+// 中古出品を見分ける目印。定価と比べる相手は本来「新品の実売価格」なので、
+// 中古を混ぜたまま最安値にすると（実測で中古¥1,134が新品¥1,045より上に来て
+// 最安値として表示される事象を確認）判断を誤らせるため、状態を区別できるようにする。
+// cleanItemNameは一致判定のために「中古」を除去してしまうので、必ず生の出品名を渡すこと
+const USED_LISTING_PATTERN = /中古|中古即納|開封済|\bUSED\b/i
+
+export function isUsedListing(rawName: string): boolean {
+  return USED_LISTING_PATTERN.test(rawName)
+}
+
 const NOISE_WORD_PATTERNS = [
   /中古/g, /新品/g, /プラモデル/g, /フィギュア/g, /おもちゃ/g, /玩具/g,
   /【.*?】/g, /＼.*?／/g, /\[.*?\]/g, /\(.*?\)/g, /（.*?）/g, /『.*?』/g, /《.*?》/g,

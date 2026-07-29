@@ -524,15 +524,28 @@ export default function Home() {
                 )}
               </div>
 
-              {/* 最安値 */}
-              <div className="p-4 bg-white flex items-center justify-between gap-2">
-                <span className="text-xs text-gray-500 font-medium">通販サイト最安値</span>
-                {result.offers.length > 0 ? (
-                  <span className="text-lg font-normal text-gray-900">
-                    ¥{result.offers[0].price.toLocaleString()}
-                  </span>
-                ) : (
-                  <span className="text-xs text-gray-400">未取得</span>
+              {/* 最安値。定価と比べる相手は新品の実売価格なので新品最安を主役にし、
+                  中古相場は下に添える */}
+              <div className="p-4 bg-white">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs text-gray-500 font-medium">通販サイト最安値（新品）</span>
+                  {result.lowestNewPrice !== null ? (
+                    <span className="text-lg font-normal text-gray-900 tabular-nums">
+                      {formatYen(result.lowestNewPrice)}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-gray-400">
+                      {result.lowestUsedPrice !== null ? "新品なし" : "未取得"}
+                    </span>
+                  )}
+                </div>
+                {result.lowestUsedPrice !== null && (
+                  <div className="flex items-center justify-between gap-2 mt-1">
+                    <span className="text-[11px] text-gray-400">中古最安</span>
+                    <span className="text-xs text-gray-500 tabular-nums">
+                      {formatYen(result.lowestUsedPrice)}
+                    </span>
+                  </div>
                 )}
               </div>
             </div>
@@ -571,6 +584,11 @@ export default function Home() {
                           <span className="shrink-0 px-1 py-px rounded bg-gray-100 text-gray-500 font-bold">
                             {OFFER_SOURCE_LABEL[offer.source]}
                           </span>
+                          {offer.condition === "used" && (
+                            <span className="shrink-0 px-1 py-px rounded bg-amber-100 text-amber-700 font-bold">
+                              中古
+                            </span>
+                          )}
                           <span className="truncate">{formatShipping(offer.shipping)}</span>
                         </span>
                       </div>

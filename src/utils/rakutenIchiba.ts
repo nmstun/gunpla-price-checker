@@ -1,4 +1,5 @@
 import { Offer } from '@/types'
+import { isUsedListing } from './itemName'
 
 // 楽天市場商品検索API。Yahoo!ショッピングAPIと違いJANコード専用の検索条件が無いため、
 // JANコードをキーワードとして投げる。商品説明文まで検索対象に含める必要があるので
@@ -88,5 +89,6 @@ export function toOffer(item: RakutenItem): Offer {
     storeId: item.shopCode || '',
     fixedPrice: 0,
     source: 'rakuten',
+    condition: isUsedListing(item.itemName ?? '') ? 'used' : 'new',
   }
 }

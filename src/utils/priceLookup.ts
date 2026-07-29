@@ -16,10 +16,32 @@ export interface PriceLookupResult {
   // バンダイ公式サイトでJANコード照合できた場合のみ値が入る。確認できなければnull
   officialPrice: number | null
   offers: Offer[]
+  // 新品・中古それぞれの最安値。上位3件に入らなかったものも拾えるよう、
+  // 絞り込み前の全オファーから算出する
+  lowestNewPrice: number | null
+  lowestUsedPrice: number | null
   // Yahoo!出品名にプレミアムバンダイ（プレバン）限定を示す目印があったかどうか。
   // プレバン限定品は説明書サイトの索引に無いことが多く定価が未確認になりやすいため、
   // UI側でその理由をユーザーに伝えるために使う
   isPremiumBandaiExclusive: boolean
+}
+
+// 同一ショップが同じ商品を複数出品していることがあり（実測でメディアワールドの
+// 中古出品が同一価格で5件返り、上位3件がすべて同じ商品で埋まる事象を確認）、
+// 比較先として役に立たないためショップ名＋価格が同じものは1件に畳む
+function dedupeOffers(offers: Offer[]): Offer[] {
+  const seen = new Set<string>()
+  return offers.filter((offer) => {
+    const key = `${offer.storeName}|${offer.price}|${offer.condition}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
+function lowestPriceOf(offers: Offer[], condition: Offer['condition']): number | null {
+  const prices = offers.filter((o) => o.condition === condition).map((o) => o.price)
+  return prices.length > 0 ? Math.min(...prices) : null
 }
 
 export interface PriceLookupError {
@@ -90,9 +112,20 @@ export async function fetchLivePriceInfo(janCode: string): Promise<PriceLookupRe
 
   const yahooOffers = matchedHits.filter((hit) => hit.inStock !== false).map(toOffer)
 
-  const topOffers = [...yahooOffers, ...rakutenOffers]
-    .sort((a, b) => a.price - b.price)
-    .slice(0, 3)
+  const allOffers = dedupeOffers([...yahooOffers, ...rakutenOffers].sort((a, b) => a.price - b.price))
+
+  // 新品と中古の最安値は、上位3件に入らなかったものも取りこぼさないよう
+  // 絞り込み前の全オファーから求める
+  const lowestNewPrice = lowestPriceOf(allOffers, 'new')
+  const lowestUsedPrice = lowestPriceOf(allOffers, 'used')
+
+  // 一覧は新品を優先して並べる（定価と比較する相手は新品の実売価格であり、
+  // 中古が上位を占めて新品の相場が見えなくなるのを防ぐ）。中古も相場の
+  // 材料として価値があるため、新品の後ろに続ける形で残す
+  const topOffers = [
+    ...allOffers.filter((o) => o.condition === 'new'),
+    ...allOffers.filter((o) => o.condition === 'used'),
+  ].slice(0, 3)
 
   // メーカー希望小売価格はバンダイ公式サイトでJANコード照合できた場合のみ採用する。
   // 確認できない場合は量販店の実売価格を定価として代用せず、nullのまま返す
@@ -109,5 +142,12 @@ export async function fetchLivePriceInfo(janCode: string): Promise<PriceLookupRe
     console.error('バンダイ公式価格の取得に失敗:', bandaiError)
   }
 
-  return { itemName, officialPrice, offers: topOffers, isPremiumBandaiExclusive }
+  return {
+    itemName,
+    officialPrice,
+    offers: topOffers,
+    lowestNewPrice,
+    lowestUsedPrice,
+    isPremiumBandaiExclusive,
+  }
 }

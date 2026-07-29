@@ -53,6 +53,8 @@ export async function POST(request: Request) {
       officialPrice: lookup.officialPrice,
       lowestMarketPrice,
       offers: lookup.offers,
+      lowestNewPrice: lookup.lowestNewPrice,
+      lowestUsedPrice: lookup.lowestUsedPrice,
       isPremiumBandaiExclusive: lookup.isPremiumBandaiExclusive,
     }
     return NextResponse.json(result)

@@ -11,6 +11,11 @@ export type ShippingInfo =
   | { kind: 'fee'; amount: number }
   | { kind: 'separate' }
 
+// 出品の状態。定価と比べる相手は本来「新品の実売価格」なので、中古を混ぜたまま
+// 最安値にしないよう区別する（中古相場自体は、公式APIが無く取得できない
+// メルカリ・ヤフオクの代わりに転売相場を掴む材料として別枠で表示する）
+export type OfferCondition = 'new' | 'used'
+
 export interface Offer {
   storeName: string
   price: number
@@ -19,6 +24,7 @@ export interface Offer {
   storeId: string
   fixedPrice: number
   source: OfferSource
+  condition: OfferCondition
 }
 
 export interface CheckPriceResult {
@@ -28,6 +34,9 @@ export interface CheckPriceResult {
   // 確認できない場合はnull（量販店の実売価格を定価として代用することはしない）
   officialPrice: number | null
   offers: Offer[]
+  // 新品・中古それぞれの最安値（絞り込み前の全オファーから算出）
+  lowestNewPrice: number | null
+  lowestUsedPrice: number | null
   // 店舗の販売価格を後から入力・編集できるように、記録されたscan_historyのIDを返す
   // （店舗未選択などで記録されなかった場合はnull）
   scanHistoryId: string | null
@@ -60,6 +69,10 @@ export interface RefreshPriceResult {
   // 最安値順の上位オファー（最大3件、各店舗へのリンク付き）。スキャン結果画面と
   // 同じ内容を履歴詳細画面でも表示するために追加した
   offers: Offer[]
+  // 新品・中古それぞれの最安値。上位3件に入らなかったものも拾えるよう、
+  // 絞り込み前の全オファーから算出して別途返す
+  lowestNewPrice: number | null
+  lowestUsedPrice: number | null
   isPremiumBandaiExclusive: boolean
 }
 

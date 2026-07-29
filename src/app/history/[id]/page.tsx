@@ -32,6 +32,8 @@ export default function HistoryDetailPage() {
   const [refreshError, setRefreshError] = useState<string | null>(null);
   // 最安値・上位オファーは都度取得の値なので保存しない。画面を開いた瞬間に自動取得する
   const [offers, setOffers] = useState<Offer[]>([]);
+  const [lowestNewPrice, setLowestNewPrice] = useState<number | null>(null);
+  const [lowestUsedPrice, setLowestUsedPrice] = useState<number | null>(null);
   const [lowestMarketLoading, setLowestMarketLoading] = useState(false);
 
   useEffect(() => {
@@ -40,6 +42,8 @@ export default function HistoryDetailPage() {
     async function load() {
       setLoading(true);
       setOffers([]);
+      setLowestNewPrice(null);
+      setLowestUsedPrice(null);
 
       const data = await fetchScanHistoryEntry(params.id);
       if (cancelled) return;
@@ -58,7 +62,10 @@ export default function HistoryDetailPage() {
         });
         const json = await res.json();
         if (!cancelled && res.ok) {
-          setOffers((json as RefreshPriceResult).offers);
+          const result = json as RefreshPriceResult;
+          setOffers(result.offers);
+          setLowestNewPrice(result.lowestNewPrice);
+          setLowestUsedPrice(result.lowestUsedPrice);
         }
       } catch {
         // 自動取得の失敗は静かに諦める（下の「定価を再取得する」で再試行できる）
@@ -161,6 +168,8 @@ export default function HistoryDetailPage() {
           : {}),
       });
       setOffers(refreshed.offers);
+      setLowestNewPrice(refreshed.lowestNewPrice);
+      setLowestUsedPrice(refreshed.lowestUsedPrice);
     } catch (err) {
       setRefreshError(err instanceof Error ? err.message : "定価の再取得に失敗しました");
     } finally {
@@ -329,20 +338,28 @@ export default function HistoryDetailPage() {
                 )}
               </div>
 
-              {/* 最安値（画面表示時に自動取得。保存はしない） */}
+              {/* 最安値（画面表示時に自動取得。保存はしない）。定価と比べる相手は
+                  新品の実売価格なので新品最安を主役にし、中古相場は副次情報として添える */}
               <div className="p-4 bg-white">
-                <span className="text-xs text-gray-500 font-medium block">通販サイト最安値</span>
+                <span className="text-xs text-gray-500 font-medium block">通販サイト最安値（新品）</span>
                 {lowestMarketLoading ? (
                   <span className="text-sm text-gray-400 mt-1 flex items-center gap-1.5">
                     <span className="w-3 h-3 border-2 border-gray-300 border-t-transparent rounded-full animate-spin" />
                     取得中...
                   </span>
-                ) : offers.length > 0 ? (
-                  <span className="text-2xl font-normal text-gray-900 mt-1 block">
-                    ¥{offers[0].price.toLocaleString()}
+                ) : lowestNewPrice !== null ? (
+                  <span className="text-2xl font-normal text-gray-900 mt-1 block tabular-nums">
+                    {formatYen(lowestNewPrice)}
                   </span>
                 ) : (
-                  <span className="text-sm text-gray-400 mt-1 block">取得できませんでした</span>
+                  <span className="text-sm text-gray-400 mt-1 block">
+                    {lowestUsedPrice !== null ? "新品の出品が見つかりませんでした" : "取得できませんでした"}
+                  </span>
+                )}
+                {!lowestMarketLoading && lowestUsedPrice !== null && (
+                  <span className="text-xs text-gray-500 mt-1 block tabular-nums">
+                    中古最安 {formatYen(lowestUsedPrice)}
+                  </span>
                 )}
               </div>
 
@@ -442,6 +459,11 @@ export default function HistoryDetailPage() {
                           <span className="shrink-0 px-1 py-px rounded bg-gray-100 text-gray-500 font-bold">
                             {OFFER_SOURCE_LABEL[offer.source]}
                           </span>
+                          {offer.condition === "used" && (
+                            <span className="shrink-0 px-1 py-px rounded bg-amber-100 text-amber-700 font-bold">
+                              中古
+                            </span>
+                          )}
                           <span className="truncate">{formatShipping(offer.shipping)}</span>
                         </span>
                       </div>
