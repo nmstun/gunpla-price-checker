@@ -1,11 +1,24 @@
+// 出品元のモール。複数モールの価格を1つのリストに混ぜて表示するため、
+// どこの価格なのかを行ごとに示せるようにしている
+export type OfferSource = 'yahoo' | 'rakuten'
+
+// 送料の表し方はモールごとに異なる（Yahoo!は送料無料/実額/条件付きが分かるが、
+// 楽天は「送料込みか送料別か」のフラグのみで実額を返さない）。
+// 実額を推測して誤った送料を出さないよう、分かる範囲だけを型で表現する
+export type ShippingInfo =
+  | { kind: 'free' }
+  | { kind: 'free_conditional' }
+  | { kind: 'fee'; amount: number }
+  | { kind: 'separate' }
+
 export interface Offer {
   storeName: string
   price: number
-  shippingFee: number
-  isConditional: boolean
+  shipping: ShippingInfo
   url: string
   storeId: string
   fixedPrice: number
+  source: OfferSource
 }
 
 export interface CheckPriceResult {

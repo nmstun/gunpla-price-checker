@@ -67,19 +67,28 @@ export function isExcludedHit(hit: YahooHit): boolean {
 
 export function toOffer(hit: YahooHit): Offer {
   const shippingName = hit.shipping?.name ?? ''
-  let shippingFee = 0
-  if (!shippingName.includes('送料無料')) {
+  const isConditional =
+    shippingName.includes('条件') || hit.shipping?.code === 1 || hit.shipping?.code === '1'
+
+  let shipping: Offer['shipping']
+  if (shippingName.includes('送料無料')) {
+    shipping = isConditional ? { kind: 'free_conditional' } : { kind: 'free' }
+  } else {
     const match = shippingName.match(/\d+/)
-    if (match) shippingFee = Number(match[0])
+    shipping = match
+      ? { kind: 'fee', amount: Number(match[0]) }
+      : isConditional
+        ? { kind: 'free_conditional' }
+        : { kind: 'free' }
   }
 
   return {
     storeName: hit.seller?.name || '不明なショップ',
     price: Number(hit.price),
-    shippingFee,
-    isConditional: shippingName.includes('条件') || hit.shipping?.code === 1 || hit.shipping?.code === '1',
+    shipping,
     url: hit.url || '#',
     storeId: hit.seller?.sellerId || '',
     fixedPrice: hit.priceLabel?.fixedPrice ? Number(hit.priceLabel.fixedPrice) : 0,
+    source: 'yahoo',
   }
 }

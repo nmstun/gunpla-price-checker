@@ -9,7 +9,7 @@ import { useFavoriteStores } from "@/hooks/useFavoriteStores";
 import { useSelectedStore } from "@/hooks/useSelectedStore";
 import { updateStorePrice, fetchScanHistory } from "@/lib/supabase/scanHistory";
 import { compareJa } from "@/utils/sort";
-import { formatShipping, formatYen } from "@/utils/price";
+import { formatShipping, formatYen, OFFER_SOURCE_LABEL } from "@/utils/price";
 import { KitSearchResultItem } from "@/types";
 
 // スキャンごとにkey={scanHistoryId}で再マウントさせ、入力状態を自然にリセットする
@@ -526,7 +526,7 @@ export default function Home() {
 
               {/* 最安値 */}
               <div className="p-4 bg-white flex items-center justify-between gap-2">
-                <span className="text-xs text-gray-500 font-medium">Yahoo!ショッピング最安値</span>
+                <span className="text-xs text-gray-500 font-medium">通販サイト最安値</span>
                 {result.offers.length > 0 ? (
                   <span className="text-lg font-normal text-gray-900">
                     ¥{result.offers[0].price.toLocaleString()}
@@ -567,8 +567,11 @@ export default function Home() {
                         <span className="text-sm font-bold text-gray-700 block truncate">
                           {offer.storeName}
                         </span>
-                        <span className="text-[11px] text-gray-400 block mt-0.5 truncate">
-                          {formatShipping(offer.shippingFee, offer.isConditional)}
+                        <span className="text-[11px] text-gray-400 mt-0.5 flex items-center gap-1.5">
+                          <span className="shrink-0 px-1 py-px rounded bg-gray-100 text-gray-500 font-bold">
+                            {OFFER_SOURCE_LABEL[offer.source]}
+                          </span>
+                          <span className="truncate">{formatShipping(offer.shipping)}</span>
                         </span>
                       </div>
                       <span className="shrink-0 text-lg font-normal text-gray-900 tabular-nums">

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { formatShipping, formatYen } from "@/utils/price";
+import { formatShipping, formatYen, OFFER_SOURCE_LABEL } from "@/utils/price";
 import { Offer, RefreshPriceResult } from "@/types";
 
 // キット名検索（/search-kit-name）で選んだ商品の詳細画面。
@@ -89,7 +89,7 @@ export default function KitSearchDetailPage() {
             </span>
           </div>
           <div className="p-4 bg-white">
-            <span className="text-xs text-gray-500 font-medium block">Yahoo!ショッピング最安値</span>
+            <span className="text-xs text-gray-500 font-medium block">通販サイト最安値</span>
             {loading ? (
               <span className="text-sm text-gray-400 mt-1 flex items-center gap-1.5">
                 <span className="w-3 h-3 border-2 border-gray-300 border-t-transparent rounded-full animate-spin" />
@@ -130,8 +130,11 @@ export default function KitSearchDetailPage() {
                     <span className="text-sm font-bold text-gray-700 block truncate">
                       {offer.storeName}
                     </span>
-                    <span className="text-[11px] text-gray-400 block mt-0.5 truncate">
-                      {formatShipping(offer.shippingFee, offer.isConditional)}
+                    <span className="text-[11px] text-gray-400 mt-0.5 flex items-center gap-1.5">
+                      <span className="shrink-0 px-1 py-px rounded bg-gray-100 text-gray-500 font-bold">
+                        {OFFER_SOURCE_LABEL[offer.source]}
+                      </span>
+                      <span className="truncate">{formatShipping(offer.shipping)}</span>
                     </span>
                   </div>
                   <span className="shrink-0 text-lg font-normal text-gray-900 tabular-nums">

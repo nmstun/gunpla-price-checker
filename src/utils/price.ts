@@ -1,3 +1,5 @@
+import { OfferSource, ShippingInfo } from '@/types'
+
 // このアプリの主目的は「店頭価格が定価に対してどれだけ上乗せされているか」を
 // ひと目で判断することなので、その判定と表示ラベルをここに集約する
 
@@ -40,9 +42,25 @@ export const VERDICT_BANNER_CLASS: Record<PriceVerdict, string> = {
 }
 
 // ショップ一覧の送料表記。スマホ幅で途中省略されないよう短く保つ
-export function formatShipping(shippingFee: number, isConditional: boolean): string {
-  if (shippingFee > 0) return `送料 ${formatYen(shippingFee)}`
-  return isConditional ? '送料無料（条件あり）' : '送料無料'
+export function formatShipping(shipping: ShippingInfo): string {
+  switch (shipping.kind) {
+    case 'fee':
+      return `送料 ${formatYen(shipping.amount)}`
+    case 'free_conditional':
+      return '送料無料（条件あり）'
+    case 'separate':
+      return '送料別'
+    case 'free':
+      return '送料無料'
+  }
+}
+
+// モール名の表示ラベル。どのモールの価格なのかを一覧の行で示すために使う。
+// 色はプレ値(赤)・お得(緑)・プレバン(紫)・手動(橙)と意味を持たせて使い分けているので、
+// モール名は意味を持たない無彩色にして、既存の色分けの読み取りを妨げないようにする
+export const OFFER_SOURCE_LABEL: Record<OfferSource, string> = {
+  yahoo: 'Yahoo!',
+  rakuten: '楽天',
 }
 
 export function verdictHeadline(comparison: PriceComparison): string {
