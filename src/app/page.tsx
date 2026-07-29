@@ -66,6 +66,14 @@ function StorePriceInput({ scanHistoryId }: { scanHistoryId: string }) {
   );
 }
 
+// 連続スキャン中に、このセッションで読み取った商品を積み上げて見比べるための1件分
+interface SessionScan {
+  janCode: string;
+  itemName: string;
+  officialPrice: number | null;
+  lowestNewPrice: number | null;
+}
+
 const KIT_SEARCH_STATE_KEY = "gunpla-price-checker:kit-search-state";
 
 interface KitSearchState {
@@ -265,6 +273,28 @@ export default function Home() {
   const codeReaderRef = useRef<BrowserMultiFormatReader | null>(null);
   const displayError = error || cameraError;
 
+  // 店内で棚の商品を次々に確認する用途。ONにすると結果を表示したあと自動で
+  // カメラを再起動するので、1件ごとにボタンを押し直す必要がなくなる
+  const [continuousMode, setContinuousMode] = useState(false);
+  // カメラ起動用useEffectの依存に入れるとモード切替のたびにカメラが再起動して
+  // しまうため、読み取りコールバックからはrefで最新値を参照する
+  const continuousModeRef = useRef(continuousMode);
+  useEffect(() => {
+    continuousModeRef.current = continuousMode;
+  }, [continuousMode]);
+  const restartTimerRef = useRef<number | null>(null);
+
+  // このセッションでスキャンした商品の積み上げ。棚の前で複数を見比べられるようにする
+  // （DBには毎回保存されるので、ここでの保持はあくまで画面上の一時的なもの）
+  const [sessionScans, setSessionScans] = useState<SessionScan[]>([]);
+
+  // 画面を離れるときに自動再起動のタイマーが残らないようにする
+  useEffect(() => {
+    return () => {
+      if (restartTimerRef.current !== null) window.clearTimeout(restartTimerRef.current);
+    };
+  }, []);
+
   // 1. バーコードスキャンの開始・停止制御
   useEffect(() => {
     if (isScanning) {
@@ -286,7 +316,28 @@ export default function Home() {
               // 選択中の店舗名がstoresテーブルに登録済みならidも渡し、リネーム後の
               // 表示追従を効かせる（未登録の履歴由来の名前を選んだ場合はnullのまま）
               const storeId = storesRef.current.find((s) => s.name === selectedStore)?.id ?? null;
-              checkPrice(jan, selectedStore ?? "", storeId); // 価格チェックAPIを叩く
+              // 価格チェックAPIを叩く。結果はstateにも入るが、1件スキャンし終えた
+              // タイミングで積み上げ・自動再開を行うために戻り値でも受け取る
+              checkPrice(jan, selectedStore ?? "", storeId).then((scanned) => {
+                if (scanned) {
+                  setSessionScans((prev) => [
+                    {
+                      janCode: jan,
+                      itemName: scanned.itemName,
+                      officialPrice: scanned.officialPrice,
+                      lowestNewPrice: scanned.lowestNewPrice,
+                    },
+                    ...prev.filter((s) => s.janCode !== jan),
+                  ]);
+                }
+                if (continuousModeRef.current) {
+                  // 結果に目を通す間を置いてから次の読み取りを再開する。
+                  // 待っている間にモードをOFFにされることがあるため、発火時にも確認する
+                  restartTimerRef.current = window.setTimeout(() => {
+                    if (continuousModeRef.current) setIsScanning(true);
+                  }, 1500);
+                }
+              });
             }
           }
           if (err && !(err.name === 'NotFoundException')) {
@@ -403,6 +454,29 @@ export default function Home() {
           </div>
         </div>
 
+        {/* 連続スキャンの切り替え。店内で棚の商品を次々に確認する用途 */}
+        <label className="flex items-center justify-between gap-3 cursor-pointer">
+          <span className="min-w-0">
+            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider block">連続スキャン</span>
+            <span className="text-[11px] text-gray-400">
+              読み取り後に自動でカメラを再開し、続けて次の商品を読めます
+            </span>
+          </span>
+          <span
+            className={`shrink-0 w-11 h-6 rounded-full transition-colors relative ${continuousMode ? "bg-blue-600" : "bg-gray-300"}`}
+          >
+            <input
+              type="checkbox"
+              checked={continuousMode}
+              onChange={(e) => setContinuousMode(e.target.checked)}
+              className="sr-only"
+            />
+            <span
+              className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${continuousMode ? "left-[22px]" : "left-0.5"}`}
+            />
+          </span>
+        </label>
+
         {/* カメラ・スキャナー領域 */}
         <div className="bg-gray-950 h-56 rounded-xl flex flex-col items-center justify-center text-white text-sm relative overflow-hidden border border-gray-800">
           {isScanning ? (
@@ -451,6 +525,39 @@ export default function Home() {
             </div>
           )}
         </div>
+
+        {/* このセッションで読み取った商品。棚の前で複数を見比べられるようにする。
+            2件以上たまってから出す（1件のときは下の結果表示と重複するため） */}
+        {sessionScans.length > 1 && (
+          <div className="space-y-1.5">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                今回スキャンした商品
+              </span>
+              <button
+                onClick={() => setSessionScans([])}
+                className="text-[11px] font-bold text-gray-400 active:text-gray-600"
+              >
+                クリア
+              </button>
+            </div>
+            <div className="divide-y divide-gray-100 border border-gray-100 rounded-xl overflow-hidden">
+              {sessionScans.map((scan) => (
+                <div key={scan.janCode} className="p-3 bg-white">
+                  <p className="text-sm font-bold text-gray-800 leading-snug">{scan.itemName}</p>
+                  <div className="flex items-center gap-x-3 mt-0.5 text-xs tabular-nums">
+                    <span className="text-gray-500">
+                      定価 {scan.officialPrice !== null ? formatYen(scan.officialPrice) : "未確認"}
+                    </span>
+                    <span className="text-gray-500">
+                      通販 {scan.lowestNewPrice !== null ? formatYen(scan.lowestNewPrice) : "未取得"}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* キット名での検索（バーコードが手元に無いとき用） */}
         <KitNameSearch />

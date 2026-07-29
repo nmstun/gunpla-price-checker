@@ -26,9 +26,13 @@ export function useCheckPrice() {
       }
 
       setResult(data as CheckPriceResult)
+      // 呼び出し側が「1件スキャンし終えた」タイミングで積み上げ処理を行えるよう、
+      // stateに入れるだけでなく結果自体も返す（effect内でsetStateを呼ぶ形を避けるため）
+      return data as CheckPriceResult
     } catch (err) {
       setError(err instanceof Error ? err.message : '価格の取得に失敗しました')
       setResult(null)
+      return null
     } finally {
       setLoading(false)
     }
