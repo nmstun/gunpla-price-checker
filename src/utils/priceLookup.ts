@@ -5,8 +5,11 @@ import { fetchRakutenItems, toOffer as toRakutenOffer } from './rakutenIchiba'
 import { findOfficialPriceByJanCode } from './bandaiHobby'
 
 const YAHOO_CLIENT_ID = process.env.YAHOO_CLIENT_ID
-// 楽天は任意設定。未設定ならYahoo!のみで従来どおり動作する
+// 楽天は任意設定。3つとも揃っていなければ問い合わせをスキップし、
+// Yahoo!のみで従来どおり動作する（アプリURLはReferer/Originの検証に必要）
 const RAKUTEN_APP_ID = process.env.RAKUTEN_APP_ID
+const RAKUTEN_ACCESS_KEY = process.env.RAKUTEN_ACCESS_KEY
+const RAKUTEN_APP_URL = process.env.RAKUTEN_APP_URL
 
 export interface PriceLookupResult {
   itemName: string
@@ -40,7 +43,13 @@ export async function fetchLivePriceInfo(janCode: string): Promise<PriceLookupRe
   // 楽天は「価格の比較先を増やす」用途に限定する
   const [yahooResult, rakutenResult] = await Promise.allSettled([
     fetchYahooHits(janCode, YAHOO_CLIENT_ID),
-    RAKUTEN_APP_ID ? fetchRakutenItems(janCode, RAKUTEN_APP_ID) : Promise.resolve([]),
+    RAKUTEN_APP_ID && RAKUTEN_ACCESS_KEY && RAKUTEN_APP_URL
+      ? fetchRakutenItems(janCode, {
+          applicationId: RAKUTEN_APP_ID,
+          accessKey: RAKUTEN_ACCESS_KEY,
+          appUrl: RAKUTEN_APP_URL,
+        })
+      : Promise.resolve([]),
   ])
 
   if (yahooResult.status === 'rejected') {

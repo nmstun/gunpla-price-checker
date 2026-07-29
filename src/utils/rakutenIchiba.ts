@@ -27,7 +27,21 @@ interface RakutenSearchResponse {
   Items?: Array<{ Item?: RakutenItem } & RakutenItem>
 }
 
-export async function fetchRakutenItems(janCode: string, applicationId: string): Promise<RakutenItem[]> {
+export interface RakutenCredentials {
+  applicationId: string
+  accessKey: string
+  /** アプリ登録時に指定したアプリケーションURL。Referer/Originの検証に使われる */
+  appUrl: string
+}
+
+// applicationIdだけでなくアクセスキーも必須。さらに2026年のインフラ刷新で
+// リクエスト元の検証が入り、Referer・Originが無いと403（REQUEST_CONTEXT_BODY_HTTP_
+// REFERRER_MISSING）になるため、登録済みのアプリケーションURLを両ヘッダーで送る。
+// アクセスキーはクエリパラメータでも渡せるが、URLやアクセスログに残さないようヘッダーで送る
+export async function fetchRakutenItems(
+  janCode: string,
+  { applicationId, accessKey, appUrl }: RakutenCredentials
+): Promise<RakutenItem[]> {
   const params = new URLSearchParams({
     applicationId,
     keyword: janCode,
@@ -45,6 +59,11 @@ export async function fetchRakutenItems(janCode: string, applicationId: string):
     const res = await fetch(`${RAKUTEN_ENDPOINT}?${params.toString()}`, {
       cache: 'no-store',
       signal: controller.signal,
+      headers: {
+        accessKey,
+        Referer: appUrl.endsWith('/') ? appUrl : `${appUrl}/`,
+        Origin: appUrl.replace(/\/$/, ''),
+      },
     })
 
     if (!res.ok) {
