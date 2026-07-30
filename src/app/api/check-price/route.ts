@@ -31,6 +31,9 @@ export async function POST(request: Request) {
         storeName: store,
         storeId: storeIdValue,
         isPremiumBandaiExclusive: cached.isPremiumBandaiExclusive,
+        // キャッシュ経由では実売価格を取得しないため相場のスナップショットは残せない
+        lowestNewPrice: null,
+        lowestUsedPrice: null,
       })
       const result: CheckPriceResult = {
         source: 'cache',
@@ -64,6 +67,8 @@ export async function POST(request: Request) {
       storeName: store,
       storeId: storeIdValue,
       isPremiumBandaiExclusive: lookup.isPremiumBandaiExclusive,
+      lowestNewPrice: lookup.lowestNewPrice,
+      lowestUsedPrice: lookup.lowestUsedPrice,
     })
 
     const result: CheckPriceResult = {

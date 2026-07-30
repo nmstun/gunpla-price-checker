@@ -9,6 +9,9 @@ interface SaveScanHistoryInput {
   storeName: string
   storeId: string | null
   isPremiumBandaiExclusive: boolean
+  // スキャンした時点の通販最安値。相場の推移をたどるためのスナップショットとして残す
+  lowestNewPrice: number | null
+  lowestUsedPrice: number | null
 }
 
 // APIルート（サーバー）から呼ぶ。storeNameが空なら店舗未選択のスキャンとして記録しない。
@@ -33,6 +36,8 @@ export async function saveScanHistory(input: SaveScanHistoryInput): Promise<stri
           store_name: storeName,
           store_id: input.storeId,
           is_premium_bandai_exclusive: input.isPremiumBandaiExclusive,
+          lowest_new_price: input.lowestNewPrice,
+          lowest_used_price: input.lowestUsedPrice,
         },
       ])
       .select('id')
@@ -190,4 +195,46 @@ export async function updateOfficialPrice(id: string, officialPrice: number | nu
     return false
   }
   return true
+}
+
+// 相場推移の1点。過去のスキャン時点に記録した通販最安値
+export interface PricePoint {
+  scannedAt: string
+  lowestNewPrice: number | null
+  storeName: string
+  storePrice: number | null
+}
+
+// 履歴詳細画面から呼ぶ（クライアントコンポーネント用）。
+// 同じJANコードのスキャン履歴を古い順に返し、相場の推移をたどれるようにする。
+// 最安値を記録していなかった時期の行（カラム追加前）はnullのまま返し、表示側で除く
+export async function fetchPriceHistory(janCode: string): Promise<PricePoint[]> {
+  const supabase = createBrowserClient()
+  if (!supabase) return []
+
+  const { data, error } = await supabase
+    .from('scan_history')
+    .select('scanned_at, lowest_new_price, store_name, store_price, stores(name)')
+    .eq('jan_code', janCode)
+    .order('scanned_at', { ascending: true })
+
+  if (error) {
+    console.error('相場推移の取得に失敗:', error)
+    return []
+  }
+
+  type Row = {
+    scanned_at: string
+    lowest_new_price: number | null
+    store_name: string
+    store_price: number | null
+    stores: { name: string } | null
+  }
+
+  return ((data ?? []) as unknown as Row[]).map((row) => ({
+    scannedAt: row.scanned_at,
+    lowestNewPrice: row.lowest_new_price,
+    storeName: row.stores?.name ?? row.store_name,
+    storePrice: row.store_price,
+  }))
 }
