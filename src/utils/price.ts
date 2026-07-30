@@ -14,6 +14,16 @@ export interface PriceComparison {
   ratioLabel: string
 }
 
+// 消費税率。プラモデルは軽減税率の対象外なので標準税率のみ扱う。
+// 各モールのAPIは税抜価格を返すことがあり（Yahoo!のpriceLabel.taxable=false、
+// 楽天のtaxFlag=1）、そのまま混ぜると税込の定価・他店価格と比較したときに
+// 1割ずれた判定になるため、取り込み時に税込へ揃える
+const CONSUMPTION_TAX_RATE = 0.1
+
+export function toTaxIncludedPrice(price: number, isTaxIncluded: boolean): number {
+  return isTaxIncluded ? price : Math.round(price * (1 + CONSUMPTION_TAX_RATE))
+}
+
 export function formatYen(value: number): string {
   return `¥${value.toLocaleString()}`
 }

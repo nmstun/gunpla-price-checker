@@ -1,5 +1,6 @@
 import { Offer } from '@/types'
 import { isUsedListing } from './itemName'
+import { toTaxIncludedPrice } from './price'
 
 // 名称の一致率フィルターを通す際の基準として信頼するストアID
 // （表記揺れが少なく、正規の定価に近い価格を出す量販店）
@@ -17,7 +18,8 @@ export interface YahooHit {
   // Yahoo!ショッピングAPIのレスポンスではセラーIDのキー名は`sellerId`（`id`ではない）
   seller?: { sellerId?: string; name?: string }
   shipping?: { name?: string; code?: number | string }
-  priceLabel?: { fixedPrice?: number | string }
+  // taxable は「price が税込み価格かどうか」。falseなら税抜なので税込へ換算する
+  priceLabel?: { fixedPrice?: number | string; taxable?: boolean }
   // 在庫の有無（実測でtrue/falseどちらも返ってくることを確認済み）。
   // フィールド自体が無い場合は判定できないため、除外せず含める側に倒す
   inStock?: boolean
@@ -85,7 +87,7 @@ export function toOffer(hit: YahooHit): Offer {
 
   return {
     storeName: hit.seller?.name || '不明なショップ',
-    price: Number(hit.price),
+    price: toTaxIncludedPrice(Number(hit.price), hit.priceLabel?.taxable !== false),
     shipping,
     url: hit.url || '#',
     storeId: hit.seller?.sellerId || '',
