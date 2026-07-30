@@ -11,12 +11,12 @@ import {
   PricePoint,
 } from "@/lib/supabase/scanHistory";
 import {
+  advisePurchase,
+  BUY_VERDICT_CLASS,
   comparePrices,
   formatShipping,
   formatYen,
   OFFER_SOURCE_LABEL,
-  VERDICT_BANNER_CLASS,
-  verdictHeadline,
 } from "@/utils/price";
 import { ScanHistoryEntry, RefreshPriceResult, Offer } from "@/types";
 
@@ -244,21 +244,35 @@ export default function HistoryDetailPage() {
               <p className="text-xs text-gray-400 mt-1">JAN: {entry.janCode}</p>
             </div>
 
-            {/* このアプリの主目的である「店頭価格が定価からどれだけ乖離しているか」を
-                最初に言い切る。定価と店頭価格の両方が分かっているときだけ表示する */}
-            {entry.officialPrice !== null && entry.storePrice !== null && (() => {
-              const comparison = comparePrices(entry.officialPrice, entry.storePrice);
+            {/* 店頭で買うべきかを最初に言い切る。定価との差だけでは決められず、
+                実際の判断は「定価・店頭価格・通販最安値」の三者関係で決まるため、
+                通販の方が明確に安いなら定価以下でも見送りと出す */}
+            {(() => {
+              const advice = advisePurchase({
+                officialPrice: entry.officialPrice,
+                storePrice: entry.storePrice,
+                lowestNewPrice,
+              });
+              if (!advice) return null;
+              const comparison =
+                entry.officialPrice !== null && entry.storePrice !== null
+                  ? comparePrices(entry.officialPrice, entry.storePrice)
+                  : null;
               return (
-                <div className={`rounded-xl border px-4 py-3 ${VERDICT_BANNER_CLASS[comparison.verdict]}`}>
-                  <p className="text-lg font-bold tabular-nums leading-snug">
-                    {verdictHeadline(comparison)}
+                <div className={`rounded-xl border px-4 py-3 ${BUY_VERDICT_CLASS[advice.verdict]}`}>
+                  <p className="text-lg font-bold leading-snug">{advice.headline}</p>
+                  <p className="text-sm font-bold mt-0.5 tabular-nums">{advice.reason}</p>
+                  <p className="text-xs mt-1.5 opacity-80 tabular-nums">
+                    {entry.officialPrice !== null && `定価 ${formatYen(entry.officialPrice)}`}
+                    {entry.storePrice !== null && ` / 店頭 ${formatYen(entry.storePrice)}`}
+                    {lowestNewPrice !== null && ` / 通販 ${formatYen(lowestNewPrice)}`}
                   </p>
-                  <p className="text-xs mt-1 opacity-80 tabular-nums">
-                    {comparison.verdict !== "even" && comparison.ratioLabel && (
-                      <span className="font-bold">定価の{comparison.ratioLabel}・</span>
-                    )}
-                    定価 {formatYen(entry.officialPrice)} → 店頭 {formatYen(entry.storePrice)}
-                  </p>
+                  {comparison !== null && comparison.verdict === "markup" && (
+                    <p className="text-xs mt-0.5 opacity-80 tabular-nums">
+                      店頭は定価より {formatYen(comparison.diff)} 高い
+                      {comparison.ratioLabel && `（定価の${comparison.ratioLabel}）`}
+                    </p>
+                  )}
                 </div>
               );
             })()}

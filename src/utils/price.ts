@@ -72,3 +72,81 @@ export function verdictHeadline(comparison: PriceComparison): string {
   }
   return '定価どおりの価格'
 }
+
+// 店頭で買うべきかの総合判定。定価との差だけでは「その場で買うべきか」を決められず、
+// 実際の判断材料は「定価・店頭価格・通販最安値」の三者関係になる。
+// 通販の方が明確に安いなら、たとえ定価以下でも店頭で買う理由は薄い
+export type BuyVerdict = 'buy' | 'consider' | 'avoid'
+
+export interface PurchaseAdvice {
+  verdict: BuyVerdict
+  headline: string
+  reason: string
+}
+
+// 店頭と通販が僅差なら、送料や待ち時間を考えると店頭で買う判断も十分ありうるため、
+// この範囲は優劣をつけず「どちらでもよい」として扱う
+function sameEnoughTolerance(marketPrice: number): number {
+  return Math.max(300, Math.round(marketPrice * 0.1))
+}
+
+export function advisePurchase(input: {
+  officialPrice: number | null
+  storePrice: number | null
+  lowestNewPrice: number | null
+}): PurchaseAdvice | null {
+  const { officialPrice, storePrice, lowestNewPrice } = input
+  // 店頭価格が分からなければ「その場で買うべきか」は判断できない
+  if (storePrice === null) return null
+
+  if (lowestNewPrice !== null) {
+    const diff = storePrice - lowestNewPrice
+    if (diff <= 0) {
+      return {
+        verdict: 'buy',
+        headline: '買い',
+        reason:
+          diff === 0
+            ? '通販最安値と同じ値段です'
+            : `通販最安値より ${formatYen(Math.abs(diff))} 安い`,
+      }
+    }
+    if (diff <= sameEnoughTolerance(lowestNewPrice)) {
+      return {
+        verdict: 'consider',
+        headline: 'どちらでも',
+        reason: `通販最安値との差は ${formatYen(diff)}（送料を考えると店頭でも可）`,
+      }
+    }
+    return {
+      verdict: 'avoid',
+      headline: '見送り',
+      reason: `通販の方が ${formatYen(diff)} 安い`,
+    }
+  }
+
+  // 通販最安値が取れなかった場合は、判断材料が定価しかないのでそれで代用する
+  if (officialPrice !== null) {
+    const diff = storePrice - officialPrice
+    if (diff <= 0) {
+      return {
+        verdict: 'buy',
+        headline: '買い',
+        reason: diff === 0 ? '定価どおりの価格です' : `定価より ${formatYen(Math.abs(diff))} 安い`,
+      }
+    }
+    return {
+      verdict: 'avoid',
+      headline: '見送り',
+      reason: `定価より ${formatYen(diff)} 高い（通販最安値は取得できず）`,
+    }
+  }
+
+  return null
+}
+
+export const BUY_VERDICT_CLASS: Record<BuyVerdict, string> = {
+  buy: 'bg-green-50 text-green-700 border-green-100',
+  consider: 'bg-amber-50 text-amber-700 border-amber-100',
+  avoid: 'bg-red-50 text-red-700 border-red-100',
+}
