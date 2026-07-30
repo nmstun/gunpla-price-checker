@@ -429,7 +429,7 @@ export default function HistoryDetailPage() {
                             setPriceInput(e.target.value);
                             setSaveStatus("idle");
                           }}
-                          placeholder="例: 6800"
+                          placeholder="税込価格（例: 6800）"
                           className="w-full text-2xl font-normal text-gray-900 pl-8 pr-3 py-1.5 rounded-lg border border-gray-200 bg-white focus:outline-none focus:border-blue-400"
                         />
                       </div>
@@ -448,6 +448,9 @@ export default function HistoryDetailPage() {
                         取消
                       </button>
                     </div>
+                    <p className="text-[11px] text-gray-500 mt-1.5">
+                      棚札の<span className="font-bold">税込価格</span>を入力してください（定価・通販価格と揃えて比較するため）
+                    </p>
                     {saveStatus === "error" && (
                       <p className="text-[11px] text-red-600 mt-1.5">保存に失敗しました。もう一度お試しください</p>
                     )}

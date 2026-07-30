@@ -48,7 +48,7 @@ function StorePriceInput({ scanHistoryId }: { scanHistoryId: string }) {
               setPriceInput(e.target.value);
               setStatus("idle");
             }}
-            placeholder="例: 6800"
+            placeholder="税込価格（例: 6800）"
             className="w-full text-base text-gray-900 pl-7 pr-3 py-2.5 rounded-lg border border-gray-200 focus:outline-none focus:border-blue-400"
           />
         </div>
@@ -60,6 +60,9 @@ function StorePriceInput({ scanHistoryId }: { scanHistoryId: string }) {
           保存
         </button>
       </div>
+      <p className="text-[11px] text-gray-400">
+        棚札の<span className="font-bold">税込価格</span>を入力してください（定価・通販価格と揃えて比較するため）
+      </p>
       {status === "saved" && <p className="text-[11px] text-green-600">保存しました</p>}
       {status === "error" && <p className="text-[11px] text-red-600">保存に失敗しました。もう一度お試しください</p>}
     </div>
