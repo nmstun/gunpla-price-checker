@@ -313,7 +313,6 @@ export default function HistoryDetailPage() {
                   entry.officialPrice !== null ? (
                     <span className="text-2xl font-normal text-blue-900 mt-1 block tabular-nums">
                       {formatYen(entry.officialPrice)}
-                      <span className="text-xs font-normal text-gray-500"> (税込)</span>
                     </span>
                   ) : (
                     <span className="text-sm text-gray-400 mt-1 block">未確認</span>
@@ -394,7 +393,7 @@ export default function HistoryDetailPage() {
                   表示のみで、「編集」ボタンを押したときだけ入力欄に切り替える */}
               <div className="p-4 bg-gray-50">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs text-gray-500 font-medium">この店舗での価格（任意）</span>
+                  <span className="text-xs text-gray-500 font-medium">この店舗での販売価格（税込・任意）</span>
                   {!isEditingStorePrice && (
                     <button
                       onClick={handleStartEditStorePrice}
@@ -456,6 +455,7 @@ export default function HistoryDetailPage() {
                 )}
               </div>
             </div>
+            <p className="text-[11px] text-gray-400">表示金額はすべて税込です</p>
 
             {/* 相場の推移。同じJANコードを過去にスキャンした時点の通販最安値を並べ、
                 プレ値化が進んでいるかを見る。最安値を記録する前の古い履歴は値を持たないため除く */}

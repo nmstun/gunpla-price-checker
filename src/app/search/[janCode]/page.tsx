@@ -90,9 +90,8 @@ export default function KitSearchDetailPage() {
         <div className="rounded-xl border border-gray-100 divide-y divide-gray-100 overflow-hidden">
           <div className="p-4 bg-gradient-to-br from-blue-50 to-indigo-50">
             <span className="text-xs text-blue-600 font-medium block">メーカー希望小売価格</span>
-            <span className="text-2xl font-normal text-blue-900 mt-1 block">
-              ¥{price.toLocaleString()}
-              <span className="text-xs font-normal text-gray-500"> (税込)</span>
+            <span className="text-2xl font-normal text-blue-900 mt-1 block tabular-nums">
+              {formatYen(price)}
             </span>
           </div>
           {/* 定価と比べる相手は新品の実売価格なので新品最安を主役にし、
@@ -120,6 +119,7 @@ export default function KitSearchDetailPage() {
             )}
           </div>
         </div>
+        <p className="text-[11px] text-gray-400">表示金額はすべて税込です</p>
 
         {/* ショップリスト（最安値TOP3。スキャン結果・履歴詳細画面と同じ表示） */}
         {offers.length > 0 && (

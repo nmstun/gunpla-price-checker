@@ -32,7 +32,7 @@ function StorePriceInput({ scanHistoryId }: { scanHistoryId: string }) {
   return (
     <div className="space-y-1.5">
       <label htmlFor="store-price" className="text-xs font-bold text-gray-500 uppercase tracking-wider block">
-        この店舗での販売価格（任意）
+        この店舗での販売価格（税込・任意）
       </label>
       <div className="flex gap-2">
         <div className="flex-1 relative">
@@ -211,7 +211,7 @@ function KitNameSearch() {
               className="w-full flex items-center justify-between gap-3 p-3 text-left bg-white active:bg-gray-50 transition-colors"
             >
               <span className="text-sm text-gray-700 leading-snug">{item.title}</span>
-              <span className="shrink-0 text-sm text-gray-900">¥{item.price.toLocaleString()}</span>
+              <span className="shrink-0 text-sm text-gray-900 tabular-nums">{formatYen(item.price)}</span>
             </button>
           ))}
         </div>
@@ -612,9 +612,8 @@ export default function Home() {
                 <div className="min-w-0">
                   <span className="text-xs text-blue-600 font-medium block">メーカー希望小売価格</span>
                   {result.officialPrice !== null ? (
-                    <span className="text-2xl font-normal text-blue-900 mt-1 block">
-                      ¥{result.officialPrice.toLocaleString()}
-                      <span className="text-xs font-normal text-gray-500"> (税込)</span>
+                    <span className="text-2xl font-normal text-blue-900 mt-1 block tabular-nums">
+                      {formatYen(result.officialPrice)}
                     </span>
                   ) : (
                     <span className="text-sm text-gray-400 mt-1 block">未確認</span>
@@ -656,6 +655,7 @@ export default function Home() {
                 )}
               </div>
             </div>
+            <p className="text-[11px] text-gray-400">表示金額はすべて税込です</p>
 
             {/* 店舗の販売価格（任意） */}
             {result.scanHistoryId && (
