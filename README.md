@@ -79,6 +79,17 @@ Deployment Platform: Vercel
 - プレミアムバンダイ（プレバン）限定商品は、スキャン結果画面・履歴一覧・履歴詳細のいずれでも商品名の隣に**紫の「プレバン限定」バッジ**が表示されます。Yahoo!の出品名に「プレバン限定」「プレミアム限定」等の目印があるかどうかで判定します（[hasPremiumBandaiMarker in src/utils/itemName.ts](src/utils/itemName.ts)）。プレバン限定品はバンダイの説明書サイト・検索索引に載っていないことが多く定価が「未確認」になりやすいため、その理由をひと目で分かるようにする目的です（"{PTM}"という出品タグも当初この目印に含めていましたが、通常品にも付くタグだと実測でわかったため除外しています）
 - 全画面共通で右上に、`package.json`の`version`をそのまま常時表示しています（例: `v0.1.0`。スクロールしても隠れないfixed表示。動作確認や問い合わせ時にどのビルドを見ているか分かるようにする目的です）
 
+🎨 アプリアイコン
+タブや iOS のホーム画面に表示されるアイコンは、スキャン枠とバーコードに赤いレーザーを重ねたもの（紺 `#1e3a8a` × 赤 `#dc2626`）。実体は `src/app/icon.svg` の1ファイルで、`src/app/apple-icon.png`（180px）と `public/icon-192.png` / `public/icon-512.png` はそこから `rsvg-convert` で書き出しています。図形を変えるときは SVG 側だけを直し、PNG を作り直します。
+
+```bash
+rsvg-convert -w 180 -h 180 src/app/icon.svg -o src/app/apple-icon.png
+rsvg-convert -w 192 -h 192 src/app/icon.svg -o public/icon-192.png
+rsvg-convert -w 512 -h 512 src/app/icon.svg -o public/icon-512.png
+```
+
+`src/app/manifest.ts` がホーム画面追加時の名称とアイコンを定義します（Next.js が `/manifest.webmanifest` として配信し、`link` タグも自動で挿入します）。`create-next-app` が生成したデフォルトの `src/app/favicon.ico` は削除済みです。
+
 🚀 開発環境での動かし方
 1. 依存関係のインストール
 ```bash
