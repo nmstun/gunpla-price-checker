@@ -80,15 +80,20 @@ Deployment Platform: Vercel
 - 全画面共通で右上に、`package.json`の`version`をそのまま常時表示しています（例: `v0.1.0`。スクロールしても隠れないfixed表示。動作確認や問い合わせ時にどのビルドを見ているか分かるようにする目的です）
 
 🎨 アプリアイコン
-タブや iOS のホーム画面に表示されるアイコンは、スキャン枠とバーコードに赤いレーザーを重ねたもの（紺 `#1e3a8a` × 赤 `#dc2626`）。実体は `src/app/icon.svg` の1ファイルで、`src/app/apple-icon.png`（180px）と `public/icon-192.png` / `public/icon-512.png` はそこから `rsvg-convert` で書き出しています。図形を変えるときは SVG 側だけを直し、PNG を作り直します。
+タブや iOS のホーム画面に表示されるアイコンは、スキャン枠とバーコードに赤いレーザーを重ねたもの（紺 `#1e3a8a` × 赤 `#dc2626`）。実体は `src/app/icon.svg` の1ファイルで、他はすべてそこから書き出しています。図形を変えるときは SVG 側だけを直し、以下で残りを作り直します。
 
 ```bash
 rsvg-convert -w 180 -h 180 src/app/icon.svg -o src/app/apple-icon.png
 rsvg-convert -w 192 -h 192 src/app/icon.svg -o public/icon-192.png
 rsvg-convert -w 512 -h 512 src/app/icon.svg -o public/icon-512.png
+node scripts/make-favicon-ico.mjs src/app/icon.svg src/app/favicon.ico
 ```
 
-`src/app/manifest.ts` がホーム画面追加時の名称とアイコンを定義します（Next.js が `/manifest.webmanifest` として配信し、`link` タグも自動で挿入します）。`create-next-app` が生成したデフォルトの `src/app/favicon.ico` は削除済みです。
+`src/app/favicon.ico` を SVG と併せて置いているのは **Safari が `rel="icon"` の SVG を使わない**ためです。SVG だけだと Safari のタブが空になります。Next.js は `favicon.ico` と `icon.svg` の両方を `link` タグとして出力するので、Safari は ico を、Chrome は SVG を使います（`create-next-app` が生成したデフォルトの ico は本アプリのアイコンで置き換え済みです）。
+
+ico の作り方には制約が2つあり、[`scripts/make-favicon-ico.mjs`](./scripts/make-favicon-ico.mjs) がそれを吸収しています。ico の中身は BMP ではなく PNG をそのまま詰めており、その PNG は **RGBA でなければなりません**（`rsvg-convert` は全ピクセルが不透明だと RGB で書き出しますが、Next.js の ICO デコーダーは RGBA を要求し、RGB のままだとビルドが 500 になります）。
+
+`src/app/manifest.ts` がホーム画面追加時の名称とアイコンを定義します（Next.js が `/manifest.webmanifest` として配信し、`link` タグも自動で挿入します）。
 
 🚀 開発環境での動かし方
 1. 依存関係のインストール
