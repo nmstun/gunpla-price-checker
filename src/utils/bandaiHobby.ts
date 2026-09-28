@@ -158,18 +158,32 @@ function buildKeywordTiers(nameForSearch: string): string[] {
   return keywordTiers
 }
 
-async function runBandaiSearch(keyword: string): Promise<BandaiProduct[]> {
-  if (!keyword) return []
+interface BandaiSearchPage {
+  products: BandaiProduct[]
+  // 価格・JANコードでのフィルタ前の件数。1ページの上限（SEARCH_RESULT_LIMIT）に達していれば続きのページがありうる
+  rawCount: number
+}
+
+const EMPTY_SEARCH_PAGE: BandaiSearchPage = { products: [], rawCount: 0 }
+
+// 検索APIの1ページ分（start位置からSEARCH_RESULT_LIMIT件）を取得する。
+// 想定外の応答（HTTPエラー・商品一覧が配列でない・全件がフィルタで落ちる）は、「0件」とだけしか
+// 見えないと原因を切り分けられないため、サーバーログに残す
+async function fetchBandaiSearchPage(keyword: string, start: number): Promise<BandaiSearchPage> {
+  if (!keyword) return EMPTY_SEARCH_PAGE
 
   const token = await fetchSearchTokenWithRetry(keyword)
-  if (!token) return []
+  if (!token) {
+    console.warn('[bandai] 検索トークンを取得できませんでした', { keyword, start })
+    return EMPTY_SEARCH_PAGE
+  }
 
   const params = new URLSearchParams({
     ip: 'hobby',
     site: 'jp',
     token,
     limit: String(SEARCH_RESULT_LIMIT),
-    start: '0',
+    start: String(start),
     data: JSON.stringify({ title: keyword }),
   })
 
@@ -177,13 +191,25 @@ async function runBandaiSearch(keyword: string): Promise<BandaiProduct[]> {
     headers: { ...BANDAI_HEADERS, Referer: 'https://bandai-hobby.net/' },
     cache: 'no-store',
   })
-  if (!res.ok) return []
+  if (!res.ok) {
+    console.warn('[bandai] 検索APIがHTTPエラーを返しました', { keyword, start, status: res.status })
+    return EMPTY_SEARCH_PAGE
+  }
 
   const body = await res.json()
   const list = body?.data?.product_list
-  if (!Array.isArray(list)) return []
+  if (!Array.isArray(list)) {
+    console.warn('[bandai] 検索APIの応答にproduct_listがありません', {
+      keyword,
+      start,
+      statusCode: body?.statusCode,
+      message: body?.message,
+      dataKeys: body?.data && typeof body.data === 'object' ? Object.keys(body.data) : null,
+    })
+    return EMPTY_SEARCH_PAGE
+  }
 
-  return list
+  const products = list
     .filter((item) => item?.product?.price && item?.product?.jancode)
     .map((item) => ({
       title: String(item.title ?? ''),
@@ -191,6 +217,50 @@ async function runBandaiSearch(keyword: string): Promise<BandaiProduct[]> {
       janCode: normalizeBandaiJanCode(String(item.product.jancode)),
       url: String(item.url ?? ''),
     }))
+  if (list.length > 0 && products.length === 0) {
+    console.warn('[bandai] 検索結果はあるが全件が価格またはJANコード未設定で除外されました', {
+      keyword,
+      start,
+      rawCount: list.length,
+    })
+  }
+  return { products, rawCount: list.length }
+}
+
+async function runBandaiSearch(keyword: string): Promise<BandaiProduct[]> {
+  return (await fetchBandaiSearchPage(keyword, 0)).products
+}
+
+// キット名検索用。一般的な短いキーワード（例:「ジム」）では、バンダイ側のヒット件数が多いだけでなく、
+// 先頭30件が価格・JANコード未設定の商品（発売前の告知ページ等と推測）だけで埋まると、フィルタ後に0件になる。
+// 表示件数に満たないときは続きのページを並列で取得して補う（JANコード照合側は1ページで足りるのでこの関数を使わない）。
+// ページごとにトークンを取り直すのは、トークンが使い回せるか分からないため（安全側に倒している）
+const NAME_SEARCH_TARGET_COUNT = 15
+const NAME_SEARCH_MAX_PAGES = 4
+
+async function runBandaiSearchAcrossPages(keyword: string): Promise<BandaiProduct[]> {
+  const first = await fetchBandaiSearchPage(keyword, 0)
+  if (first.products.length >= NAME_SEARCH_TARGET_COUNT || first.rawCount < SEARCH_RESULT_LIMIT) {
+    return first.products
+  }
+
+  const starts = Array.from({ length: NAME_SEARCH_MAX_PAGES - 1 }, (_, i) => (i + 1) * SEARCH_RESULT_LIMIT)
+  const rest = await Promise.all(
+    starts.map((start) =>
+      // 2ページ目以降の失敗（タイムアウト等）は無視し、取れた分だけで続行する
+      fetchBandaiSearchPage(keyword, start).catch(() => EMPTY_SEARCH_PAGE)
+    )
+  )
+
+  // ページ順を保ったまま、同じJANコードの重複を除く
+  const seen = new Set<string>()
+  const merged: BandaiProduct[] = []
+  for (const product of [first, ...rest].flatMap((page) => page.products)) {
+    if (seen.has(product.janCode)) continue
+    seen.add(product.janCode)
+    merged.push(product)
+  }
+  return merged
 }
 
 // バンダイ側のjancodeはJAN13桁の末尾に"000"等が付与された16桁で返ることがある。
@@ -344,8 +414,11 @@ export async function searchBandaiProductsByName(rawKeyword: string): Promise<Ba
 
   let products: BandaiProduct[] = []
   for (const tier of keywordTiers) {
-    products = await runBandaiSearch(tier)
+    products = await runBandaiSearchAcrossPages(tier)
     if (products.length > 0) break
+  }
+  if (products.length === 0) {
+    console.warn('[bandai] キット名検索の候補が0件でした', { rawKeyword, keywordTiers })
   }
 
   const requestedGrade = detectGrade(rawKeyword)
