@@ -28,6 +28,18 @@ export function formatYen(value: number): string {
   return `¥${value.toLocaleString()}`
 }
 
+export type ParsedPriceInput = { ok: true; price: number | null } | { ok: false }
+
+// 価格の手入力欄の値を数値に変換する。空欄は「未入力（null）」として有効、
+// 数値にできない値や負数は無効。スキャン結果・履歴詳細の入力欄で検証を揃えるために共用する
+export function parsePriceInput(input: string): ParsedPriceInput {
+  const trimmed = input.trim()
+  if (trimmed === '') return { ok: true, price: null }
+  const price = Number(trimmed)
+  if (!Number.isFinite(price) || price < 0) return { ok: false }
+  return { ok: true, price }
+}
+
 export function comparePrices(officialPrice: number, storePrice: number): PriceComparison {
   const diff = storePrice - officialPrice
   const verdict: PriceVerdict = diff > 0 ? 'markup' : diff < 0 ? 'deal' : 'even'

@@ -1,10 +1,10 @@
 "use client";
 
-import type { CheckPriceResult } from "@/types";
+import type { Offer } from "@/types";
 import { formatShipping, formatYen, OFFER_SOURCE_LABEL } from "@/utils/price";
 
 interface OfferListProps {
-  offers: NonNullable<CheckPriceResult["offers"]>;
+  offers: Offer[];
 }
 
 // 同一商品を扱うショップの一覧（本体価格順）。上位3件は順位バッジの色を変えている

@@ -157,11 +157,12 @@ src/
 │   ├── SessionScanList.tsx       # 連続スキャンで今回読み取った商品の積み上げ表示（2件以上で表示）
 │   ├── KitNameSearch.tsx         # キット名検索（バーコード不要）の入力・結果一覧
 │   ├── PriceResult.tsx           # スキャン結果（商品名・定価と最安値の比較・店舗価格入力・再スキャン導線）
-│   ├── OfferList.tsx             # 同一商品ショップ一覧（本体価格順）
+│   ├── OfferList.tsx             # 同一商品ショップ一覧（本体価格順。スキャン結果・履歴詳細・キット詳細で共用）
 │   └── StorePriceInput.tsx       # この店舗での販売価格（税込・任意）の入力・保存
 ├── hooks/
 │   ├── useBarcodeScanner.ts      # カメラ制御・JAN読み取り・連続スキャン・セッション内の積み上げ（コールバックからはrefで最新値を参照し、店舗切替でカメラが再起動しないようにしている）
 │   ├── useKitSearchState.ts      # キット名検索のキーワード・結果をsessionStorageに保持（useSyncExternalStore）
+│   ├── useMarketPrices.ts        # JANコードで通販最安値・上位オファーを都度取得（履歴詳細・キット詳細で共用。保存はしない）
 │   ├── useCheckPrice.ts          # 価格チェックAPI呼び出し用フック
 │   ├── useFavoriteStores.ts      # 読取り店舗一覧（name/address/url、storesテーブル永続化、店舗名順で返す。旧localStorageデータは初回のみDBへ自動移行）
 │   └── useSelectedStore.ts       # 選択中の読取り店舗（localStorage永続化、画面遷移をまたいで保持）
@@ -178,7 +179,7 @@ src/
     ├── rakutenIchiba.ts           # 楽天市場APIの呼び出し・オファー整形（JANはキーワード検索）
     ├── bandaiHobby.ts             # バンダイ ホビーサイトからのメーカー希望小売価格取得
     ├── priceLookup.ts             # Yahoo!＋バンダイの価格取得ロジック本体（check-price/refresh-priceで共用）
-    ├── price.ts                   # 定価と店頭価格の乖離判定・差額/倍率ラベル・配色（一覧のバッジと詳細のバナーで共用）
+    ├── price.ts                   # 定価と店頭価格の乖離判定・差額/倍率ラベル・配色（一覧のバッジと詳細のバナーで共用）・価格入力欄の検証（parsePriceInput）
     ├── sort.ts                    # 日本語文字列の共通ソート比較（店舗名の並び順）
     └── grade.ts                   # 商品名からグレード（HG/RG/MG等）を判定（履歴一覧の絞り込み用）
 supabase/

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { updateStorePrice } from "@/lib/supabase/scanHistory";
+import { parsePriceInput } from "@/utils/price";
 
 // スキャンごとにkey={scanHistoryId}で再マウントさせ、入力状態を自然にリセットする
 export function StorePriceInput({ scanHistoryId }: { scanHistoryId: string }) {
@@ -9,14 +10,13 @@ export function StorePriceInput({ scanHistoryId }: { scanHistoryId: string }) {
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
 
   const handleSave = async () => {
-    const trimmed = priceInput.trim();
-    const price = trimmed === "" ? null : Number(trimmed);
-    if (price !== null && (!Number.isFinite(price) || price < 0)) {
+    const parsed = parsePriceInput(priceInput);
+    if (!parsed.ok) {
       setStatus("error");
       return;
     }
     setStatus("saving");
-    const ok = await updateStorePrice(scanHistoryId, price);
+    const ok = await updateStorePrice(scanHistoryId, parsed.price);
     setStatus(ok ? "saved" : "error");
   };
 

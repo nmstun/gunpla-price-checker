@@ -14,11 +14,12 @@ import {
   advisePurchase,
   BUY_VERDICT_CLASS,
   comparePrices,
-  formatShipping,
   formatYen,
-  OFFER_SOURCE_LABEL,
+  parsePriceInput,
 } from "@/utils/price";
-import { ScanHistoryEntry, RefreshPriceResult, Offer } from "@/types";
+import { useMarketPrices } from "@/hooks/useMarketPrices";
+import { OfferList } from "@/components/OfferList";
+import { ScanHistoryEntry, RefreshPriceResult } from "@/types";
 
 export default function HistoryDetailPage() {
   const params = useParams<{ id: string }>();
@@ -37,10 +38,14 @@ export default function HistoryDetailPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
   // 最安値・上位オファーは都度取得の値なので保存しない。画面を開いた瞬間に自動取得する
-  const [offers, setOffers] = useState<Offer[]>([]);
-  const [lowestNewPrice, setLowestNewPrice] = useState<number | null>(null);
-  const [lowestUsedPrice, setLowestUsedPrice] = useState<number | null>(null);
-  const [lowestMarketLoading, setLowestMarketLoading] = useState(false);
+  // （entryが読み込まれてJANコードが分かった時点で取得が始まる）
+  const {
+    offers,
+    lowestNewPrice,
+    lowestUsedPrice,
+    loading: lowestMarketLoading,
+    applyResult: applyMarketPrices,
+  } = useMarketPrices(entry?.janCode ?? null);
   // 同じJANコードの過去スキャンに記録した通販最安値。相場が上がっているか下がっているかを見る
   const [pricePoints, setPricePoints] = useState<PricePoint[]>([]);
 
@@ -49,9 +54,6 @@ export default function HistoryDetailPage() {
 
     async function load() {
       setLoading(true);
-      setOffers([]);
-      setLowestNewPrice(null);
-      setLowestUsedPrice(null);
 
       const data = await fetchScanHistoryEntry(params.id);
       if (cancelled) return;
@@ -63,28 +65,6 @@ export default function HistoryDetailPage() {
       setEntry(data);
       setPriceInput(data?.storePrice?.toString() ?? "");
       setLoading(false);
-
-      if (!data) return;
-
-      setLowestMarketLoading(true);
-      try {
-        const res = await fetch("/api/refresh-price", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ janCode: data.janCode, persist: false }),
-        });
-        const json = await res.json();
-        if (!cancelled && res.ok) {
-          const result = json as RefreshPriceResult;
-          setOffers(result.offers);
-          setLowestNewPrice(result.lowestNewPrice);
-          setLowestUsedPrice(result.lowestUsedPrice);
-        }
-      } catch {
-        // 自動取得の失敗は静かに諦める（下の「定価を再取得する」で再試行できる）
-      } finally {
-        if (!cancelled) setLowestMarketLoading(false);
-      }
     }
 
     load();
@@ -107,12 +87,12 @@ export default function HistoryDetailPage() {
 
   const handleSaveStorePrice = async () => {
     if (!entry) return;
-    const trimmed = priceInput.trim();
-    const price = trimmed === "" ? null : Number(trimmed);
-    if (price !== null && (!Number.isFinite(price) || price < 0)) {
+    const parsed = parsePriceInput(priceInput);
+    if (!parsed.ok) {
       setSaveStatus("error");
       return;
     }
+    const price = parsed.price;
     setSaveStatus("saving");
     const ok = await updateStorePrice(entry.id, price);
     if (ok) {
@@ -138,12 +118,12 @@ export default function HistoryDetailPage() {
 
   const handleSaveOfficialPrice = async () => {
     if (!entry) return;
-    const trimmed = officialInput.trim();
-    const price = trimmed === "" ? null : Number(trimmed);
-    if (price !== null && (!Number.isFinite(price) || price < 0)) {
+    const parsed = parsePriceInput(officialInput);
+    if (!parsed.ok) {
       setOfficialSaveStatus("error");
       return;
     }
+    const price = parsed.price;
     setOfficialSaveStatus("saving");
     const ok = await updateOfficialPrice(entry.id, price);
     if (ok) {
@@ -180,9 +160,7 @@ export default function HistoryDetailPage() {
           ? { officialPrice: refreshed.officialPrice, officialPriceIsManual: false }
           : {}),
       });
-      setOffers(refreshed.offers);
-      setLowestNewPrice(refreshed.lowestNewPrice);
-      setLowestUsedPrice(refreshed.lowestUsedPrice);
+      applyMarketPrices(refreshed);
     } catch (err) {
       setRefreshError(err instanceof Error ? err.message : "定価の再取得に失敗しました");
     } finally {
@@ -532,51 +510,7 @@ export default function HistoryDetailPage() {
             })()}
 
             {/* ショップリスト（最安値TOP3。スキャン結果画面と同じ表示） */}
-            {offers.length > 0 && (
-              <div className="space-y-2.5">
-                <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">
-                  同一商品ショップ（本体価格順）
-                </h3>
-                <div className="divide-y divide-gray-100 border border-gray-100 rounded-xl overflow-hidden bg-gray-50">
-                  {offers.map((offer, index) => (
-                    <a
-                      key={index}
-                      href={offer.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-2.5 p-3.5 bg-white active:bg-gray-50 transition-colors"
-                    >
-                      <span className={`shrink-0 text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full ${index === 0 ? "bg-amber-100 text-amber-700" :
-                        index === 1 ? "bg-slate-200 text-slate-700" :
-                          "bg-orange-100 text-orange-700"
-                        }`}>
-                        {index + 1}
-                      </span>
-                      <div className="flex-1 min-w-0">
-                        <span className="text-sm font-bold text-gray-700 block truncate">
-                          {offer.storeName}
-                        </span>
-                        <span className="text-[11px] text-gray-400 mt-0.5 flex items-center gap-1.5">
-                          <span className="shrink-0 px-1 py-px rounded bg-gray-100 text-gray-500 font-bold">
-                            {OFFER_SOURCE_LABEL[offer.source]}
-                          </span>
-                          {offer.condition === "used" && (
-                            <span className="shrink-0 px-1 py-px rounded bg-amber-100 text-amber-700 font-bold">
-                              中古
-                            </span>
-                          )}
-                          <span className="truncate">{formatShipping(offer.shipping)}</span>
-                        </span>
-                      </div>
-                      <span className="shrink-0 text-lg font-normal text-gray-900 tabular-nums">
-                        {formatYen(offer.price)}
-                      </span>
-                      <span className="shrink-0 text-xs text-gray-300">›</span>
-                    </a>
-                  ))}
-                </div>
-              </div>
-            )}
+            {offers.length > 0 && <OfferList offers={offers} />}
 
             {/* 定価再取得 */}
             <div className="space-y-1.5">
