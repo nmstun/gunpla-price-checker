@@ -150,8 +150,18 @@ src/
 │   │   ├── page.tsx              # 店舗管理（名称編集・住所・URL登録、全店舗をまとめた地図表示）
 │   │   └── StoreMap.tsx          # Leaflet+OpenStreetMapの地図本体（登録店舗を番号付きピンで一括表示）
 │   ├── layout.tsx
-│   └── page.tsx                  # バーコードスキャンUI（店舗選択＋useCheckPriceフック経由）
+│   └── page.tsx                  # スキャン画面の組み立てのみ（ロジックはhooks、UIパーツはcomponentsに分割）
+├── components/                   # スキャン画面（app/page.tsx）のUIパーツ
+│   ├── StoreSelector.tsx         # 読取り店舗の選択・追加・削除（登録店舗＋scan_history由来の店舗名を統合して表示）
+│   ├── ScannerView.tsx           # カメラ映像・照準フレーム・起動ボタン
+│   ├── SessionScanList.tsx       # 連続スキャンで今回読み取った商品の積み上げ表示（2件以上で表示）
+│   ├── KitNameSearch.tsx         # キット名検索（バーコード不要）の入力・結果一覧
+│   ├── PriceResult.tsx           # スキャン結果（商品名・定価と最安値の比較・店舗価格入力・再スキャン導線）
+│   ├── OfferList.tsx             # 同一商品ショップ一覧（本体価格順）
+│   └── StorePriceInput.tsx       # この店舗での販売価格（税込・任意）の入力・保存
 ├── hooks/
+│   ├── useBarcodeScanner.ts      # カメラ制御・JAN読み取り・連続スキャン・セッション内の積み上げ（コールバックからはrefで最新値を参照し、店舗切替でカメラが再起動しないようにしている）
+│   ├── useKitSearchState.ts      # キット名検索のキーワード・結果をsessionStorageに保持（useSyncExternalStore）
 │   ├── useCheckPrice.ts          # 価格チェックAPI呼び出し用フック
 │   ├── useFavoriteStores.ts      # 読取り店舗一覧（name/address/url、storesテーブル永続化、店舗名順で返す。旧localStorageデータは初回のみDBへ自動移行）
 │   └── useSelectedStore.ts       # 選択中の読取り店舗（localStorage永続化、画面遷移をまたいで保持）

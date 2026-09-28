@@ -1,227 +1,15 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { BrowserMultiFormatReader, Result, Exception } from "@zxing/library";
 import { useCheckPrice } from "@/hooks/useCheckPrice";
 import { useFavoriteStores } from "@/hooks/useFavoriteStores";
 import { useSelectedStore } from "@/hooks/useSelectedStore";
-import { updateStorePrice, fetchScanHistory } from "@/lib/supabase/scanHistory";
-import { compareJa } from "@/utils/sort";
-import { formatShipping, formatYen, OFFER_SOURCE_LABEL } from "@/utils/price";
-import { KitSearchResultItem } from "@/types";
-
-// スキャンごとにkey={scanHistoryId}で再マウントさせ、入力状態を自然にリセットする
-function StorePriceInput({ scanHistoryId }: { scanHistoryId: string }) {
-  const [priceInput, setPriceInput] = useState("");
-  const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
-
-  const handleSave = async () => {
-    const trimmed = priceInput.trim();
-    const price = trimmed === "" ? null : Number(trimmed);
-    if (price !== null && (!Number.isFinite(price) || price < 0)) {
-      setStatus("error");
-      return;
-    }
-    setStatus("saving");
-    const ok = await updateStorePrice(scanHistoryId, price);
-    setStatus(ok ? "saved" : "error");
-  };
-
-  return (
-    <div className="space-y-1.5">
-      <label htmlFor="store-price" className="text-xs font-bold text-gray-500 uppercase tracking-wider block">
-        この店舗での販売価格（税込・任意）
-      </label>
-      <div className="flex gap-2">
-        <div className="flex-1 relative">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-base pointer-events-none">
-            ¥
-          </span>
-          <input
-            id="store-price"
-            type="number"
-            inputMode="numeric"
-            value={priceInput}
-            onChange={(e) => {
-              setPriceInput(e.target.value);
-              setStatus("idle");
-            }}
-            placeholder="税込価格（例: 6800）"
-            className="w-full text-base text-gray-900 pl-7 pr-3 py-2.5 rounded-lg border border-gray-200 focus:outline-none focus:border-blue-400"
-          />
-        </div>
-        <button
-          onClick={handleSave}
-          disabled={status === "saving"}
-          className="shrink-0 text-sm font-bold px-4 py-2.5 rounded-lg bg-gray-100 text-gray-600 active:bg-gray-200 transition disabled:opacity-50"
-        >
-          保存
-        </button>
-      </div>
-      <p className="text-[11px] text-gray-400">
-        棚札の<span className="font-bold">税込価格</span>を入力してください（定価・通販価格と揃えて比較するため）
-      </p>
-      {status === "saved" && <p className="text-[11px] text-green-600">保存しました</p>}
-      {status === "error" && <p className="text-[11px] text-red-600">保存に失敗しました。もう一度お試しください</p>}
-    </div>
-  );
-}
-
-// 連続スキャン中に、このセッションで読み取った商品を積み上げて見比べるための1件分
-interface SessionScan {
-  janCode: string;
-  itemName: string;
-  officialPrice: number | null;
-  lowestNewPrice: number | null;
-}
-
-const KIT_SEARCH_STATE_KEY = "gunpla-price-checker:kit-search-state";
-
-interface KitSearchState {
-  keyword: string;
-  results: KitSearchResultItem[] | null;
-}
-
-// 詳細画面（/search/[janCode]）から「戻る」で帰ってきたときに検索結果が消えないよう、
-// キーワードと結果をsessionStorageに保持する。ブラウザ/タブを閉じれば自然に消える
-// 一時的な状態なので、店舗選択のようなlocalStorageでの永続化はしない
-const EMPTY_KIT_SEARCH_STATE: KitSearchState = { keyword: "", results: null };
-
-function readPersistedKitSearch(): KitSearchState {
-  try {
-    const raw = sessionStorage.getItem(KIT_SEARCH_STATE_KEY);
-    if (!raw) return EMPTY_KIT_SEARCH_STATE;
-    return JSON.parse(raw) as KitSearchState;
-  } catch {
-    return EMPTY_KIT_SEARCH_STATE;
-  }
-}
-
-// useSyncExternalStoreでsessionStorageをReact外部ストアとして扱う。
-// サーバー/ハイドレーション時は常にgetServerSnapshot（空状態）を返すためSSRと食い違わず、
-// ハイドレーション完了後にReactが自動でgetSnapshot（実際の保存値）へ再描画する
-let kitSearchSnapshot: KitSearchState | null = null;
-const kitSearchListeners = new Set<() => void>();
-
-function getKitSearchSnapshot(): KitSearchState {
-  if (kitSearchSnapshot === null) {
-    kitSearchSnapshot = readPersistedKitSearch();
-  }
-  return kitSearchSnapshot;
-}
-
-function getKitSearchServerSnapshot(): KitSearchState {
-  return EMPTY_KIT_SEARCH_STATE;
-}
-
-function subscribeKitSearch(listener: () => void): () => void {
-  kitSearchListeners.add(listener);
-  return () => kitSearchListeners.delete(listener);
-}
-
-function setKitSearchState(update: Partial<KitSearchState>) {
-  kitSearchSnapshot = { ...getKitSearchSnapshot(), ...update };
-  sessionStorage.setItem(KIT_SEARCH_STATE_KEY, JSON.stringify(kitSearchSnapshot));
-  kitSearchListeners.forEach((listener) => listener());
-}
-
-// バーコードが手元に無いときに、キット名から直接バンダイ公式サイトの定価を調べる機能。
-// バーコードスキャンとは独立しており、店舗選択やスキャン履歴への保存は行わない。
-// 一覧から商品を選ぶと、定価・最安値TOP3を表示する専用の詳細画面（/search/[janCode]）に遷移する
-function KitNameSearch() {
-  const router = useRouter();
-  const { keyword, results } = useSyncExternalStore(
-    subscribeKitSearch,
-    getKitSearchSnapshot,
-    getKitSearchServerSnapshot
-  );
-  const setKeyword = (value: string) => setKitSearchState({ keyword: value });
-  const setResults = (value: KitSearchResultItem[] | null) => setKitSearchState({ results: value });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const handleSearch = async () => {
-    const trimmed = keyword.trim();
-    if (!trimmed) return;
-    setLoading(true);
-    setError(null);
-    setResults(null);
-    try {
-      const res = await fetch("/api/search-kit-name", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ keyword: trimmed }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "検索に失敗しました");
-      }
-      setResults(data.results as KitSearchResultItem[]);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "検索に失敗しました");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSelect = (item: KitSearchResultItem) => {
-    const query = new URLSearchParams({
-      title: item.title,
-      price: String(item.price),
-      url: item.url,
-    }).toString();
-    router.push(`/search/${item.janCode}?${query}`);
-  };
-
-  return (
-    <div className="space-y-2">
-      <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">
-        キット名で定価を調べる
-      </span>
-      <p className="text-[11px] text-gray-400">バーコードが手元に無いときに使えます（履歴には保存されません）</p>
-      <div className="flex gap-2">
-        <input
-          type="text"
-          value={keyword}
-          onChange={(e) => setKeyword(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-          placeholder="例: HG 1/144 ジム・コマンド"
-          className="flex-1 min-w-0 text-base text-gray-900 px-3 py-2.5 rounded-lg border border-gray-200 focus:outline-none focus:border-blue-400"
-        />
-        <button
-          onClick={handleSearch}
-          disabled={loading || !keyword.trim()}
-          className="shrink-0 text-sm font-bold px-4 py-2.5 rounded-lg bg-gray-100 text-gray-600 active:bg-gray-200 transition disabled:opacity-50"
-        >
-          {loading ? "検索中..." : "検索"}
-        </button>
-      </div>
-
-      {error && <p className="text-[11px] text-red-600">{error}</p>}
-
-      {results && results.length === 0 && (
-        <p className="text-[11px] text-gray-400">該当する商品が見つかりませんでした</p>
-      )}
-
-      {results && results.length > 0 && (
-        <div className="divide-y divide-gray-100 border border-gray-100 rounded-xl overflow-hidden">
-          {results.map((item, index) => (
-            <button
-              key={`${item.janCode}-${index}`}
-              onClick={() => handleSelect(item)}
-              className="w-full flex items-center justify-between gap-3 p-3 text-left bg-white active:bg-gray-50 transition-colors"
-            >
-              <span className="text-sm text-gray-700 leading-snug">{item.title}</span>
-              <span className="shrink-0 text-sm text-gray-900 tabular-nums">{formatYen(item.price)}</span>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
+import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
+import { StoreSelector } from "@/components/StoreSelector";
+import { ScannerView } from "@/components/ScannerView";
+import { SessionScanList } from "@/components/SessionScanList";
+import { KitNameSearch } from "@/components/KitNameSearch";
+import { PriceResult } from "@/components/PriceResult";
 
 export default function Home() {
   const { result, loading, error, checkPrice, reset } = useCheckPrice();
@@ -230,150 +18,9 @@ export default function Home() {
   // 読取り店舗の選択状態。スキャン画面⇔履歴画面の行き来で選び直さずに済むよう
   // localStorageに永続化する（画面遷移のたびにコンポーネントは作り直されるため）
   const { selectedStore, setSelectedStore } = useSelectedStore();
-  const [newStoreName, setNewStoreName] = useState("");
 
-  // お気に入り登録（localStorage、端末ごと）に加えて、スキャン履歴（Supabase、共有）に
-  // 記録済みの店舗名も候補に加える。別端末・別ブラウザで使った店舗名や、
-  // localStorageが消えた場合でも過去に使った店舗名を選び直せるようにするため
-  const [historyStoreNames, setHistoryStoreNames] = useState<string[]>([]);
-  useEffect(() => {
-    fetchScanHistory().then((entries) => {
-      setHistoryStoreNames(Array.from(new Set(entries.map((e) => e.storeName))));
-    });
-  }, []);
-
-  const storeNames = useMemo(
-    () => Array.from(new Set([...stores.map((s) => s.name), ...historyStoreNames])).sort(compareJa),
-    [stores, historyStoreNames]
-  );
-
-  // バーコード検出コールバック内でstoresの最新値を読むための参照。カメラ起動用
-  // useEffectの依存配列にstoresを含めると、店舗一覧が再取得されるたびにカメラの
-  // ストリームが再起動してしまうため、依存はisScanning等に絞りrefで最新値を渡す
-  const storesRef = useRef(stores);
-  useEffect(() => {
-    storesRef.current = stores;
-  }, [stores]);
-
-  const handleAddStore = () => {
-    const trimmed = newStoreName.trim();
-    if (!trimmed) return;
-    addStore(trimmed);
-    setSelectedStore(trimmed);
-    setNewStoreName("");
-  };
-
-  const handleRemoveStore = (store: string) => {
-    removeStore(store);
-    if (selectedStore === store) setSelectedStore(null);
-  };
-
-  // カメラ制御用の状態
-  const [isScanning, setIsScanning] = useState(false);
-  const [scannedCode, setScannedCode] = useState<string | null>(null);
-  const [cameraError, setCameraError] = useState<string | null>(null);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const codeReaderRef = useRef<BrowserMultiFormatReader | null>(null);
-  const displayError = error || cameraError;
-
-  // 店内で棚の商品を次々に確認する用途。ONにすると結果を表示したあと自動で
-  // カメラを再起動するので、1件ごとにボタンを押し直す必要がなくなる
-  const [continuousMode, setContinuousMode] = useState(false);
-  // カメラ起動用useEffectの依存に入れるとモード切替のたびにカメラが再起動して
-  // しまうため、読み取りコールバックからはrefで最新値を参照する
-  const continuousModeRef = useRef(continuousMode);
-  useEffect(() => {
-    continuousModeRef.current = continuousMode;
-  }, [continuousMode]);
-  const restartTimerRef = useRef<number | null>(null);
-
-  // このセッションでスキャンした商品の積み上げ。棚の前で複数を見比べられるようにする
-  // （DBには毎回保存されるので、ここでの保持はあくまで画面上の一時的なもの）
-  const [sessionScans, setSessionScans] = useState<SessionScan[]>([]);
-
-  // 画面を離れるときに自動再起動のタイマーが残らないようにする
-  useEffect(() => {
-    return () => {
-      if (restartTimerRef.current !== null) window.clearTimeout(restartTimerRef.current);
-    };
-  }, []);
-
-  // 1. バーコードスキャンの開始・停止制御
-  useEffect(() => {
-    if (isScanning) {
-      // バーコードリーダーの初期化（EAN/JANコード等の主要フォーマット対応）
-      const codeReader = new BrowserMultiFormatReader();
-      codeReaderRef.current = codeReader;
-
-      codeReader.decodeFromVideoDevice(
-        null, // nullを指定すると自動的に背面カメラ等の最適なデバイスを選択します
-        videoRef.current,
-        (decodeResult: Result | null, err?: Exception) => {
-          if (decodeResult) {
-            const jan = decodeResult.getText();
-            // JANコードは通常13桁（古いものは8桁）
-            if (jan && (jan.length === 13 || jan.length === 8)) {
-              // 読み取り成功時の処理
-              setScannedCode(jan);
-              setIsScanning(false); // スキャンを一旦停止
-              // 選択中の店舗名がstoresテーブルに登録済みならidも渡し、リネーム後の
-              // 表示追従を効かせる（未登録の履歴由来の名前を選んだ場合はnullのまま）
-              const storeId = storesRef.current.find((s) => s.name === selectedStore)?.id ?? null;
-              // 価格チェックAPIを叩く。結果はstateにも入るが、1件スキャンし終えた
-              // タイミングで積み上げ・自動再開を行うために戻り値でも受け取る
-              checkPrice(jan, selectedStore ?? "", storeId).then((scanned) => {
-                if (scanned) {
-                  setSessionScans((prev) => [
-                    {
-                      janCode: jan,
-                      itemName: scanned.itemName,
-                      officialPrice: scanned.officialPrice,
-                      lowestNewPrice: scanned.lowestNewPrice,
-                    },
-                    ...prev.filter((s) => s.janCode !== jan),
-                  ]);
-                }
-                if (continuousModeRef.current) {
-                  // 結果に目を通す間を置いてから次の読み取りを再開する。
-                  // 待っている間にモードをOFFにされることがあるため、発火時にも確認する
-                  restartTimerRef.current = window.setTimeout(() => {
-                    if (continuousModeRef.current) setIsScanning(true);
-                  }, 1500);
-                }
-              });
-            }
-          }
-          if (err && !(err.name === 'NotFoundException')) {
-            console.error("スキャンエラー:", err);
-          }
-        }
-      ).catch((err) => {
-        console.error("カメラ起動失敗:", err);
-        setCameraError("カメラの起動に失敗しました。カメラのアクセス権限を確認してください。");
-        setIsScanning(false);
-      });
-    } else {
-      // スキャン停止時はカメラのストリームを完全に解放
-      if (codeReaderRef.current) {
-        codeReaderRef.current.reset();
-        codeReaderRef.current = null;
-      }
-    }
-
-    return () => {
-      if (codeReaderRef.current) {
-        codeReaderRef.current.reset();
-      }
-    };
-  }, [isScanning, checkPrice, selectedStore]);
-
-  // スキャンの再試行
-  const handleResetScan = () => {
-    reset();
-    setScannedCode(null);
-    setCameraError(null);
-    setIsScanning(true);
-  };
+  const scanner = useBarcodeScanner({ selectedStore, stores, checkPrice, reset });
+  const displayError = error || scanner.cameraError;
 
   return (
     <div
@@ -403,59 +50,13 @@ export default function Home() {
       </header>
 
       <main className="w-full max-w-md bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-6">
-
-        {/* 読取り店舗の選択。店舗数が増えてもチップが折り返して縦に伸びないよう、
-            ドロップダウンで1行に収めている。削除は選択中の店舗のみ、隣の「削除」ボタンから行う */}
-        <div className="space-y-2">
-          <span className="text-xs font-bold text-gray-500 uppercase tracking-wider block">
-            読取り店舗
-          </span>
-          {storeNames.length > 0 ? (
-            <div className="flex gap-2">
-              <select
-                value={selectedStore ?? ""}
-                onChange={(e) => setSelectedStore(e.target.value || null)}
-                className="flex-1 min-w-0 text-base text-gray-900 px-3 py-2.5 rounded-lg border border-gray-200 bg-white focus:outline-none focus:border-blue-400"
-              >
-                <option value="" disabled>
-                  店舗を選択してください
-                </option>
-                {storeNames.map((name) => (
-                  <option key={name} value={name}>
-                    {name}
-                  </option>
-                ))}
-              </select>
-              {selectedStore && stores.some((s) => s.name === selectedStore) && (
-                <button
-                  onClick={() => handleRemoveStore(selectedStore)}
-                  aria-label={`${selectedStore}を削除`}
-                  className="shrink-0 text-sm font-bold px-4 py-2.5 rounded-lg bg-gray-100 text-gray-500 active:bg-gray-200 transition"
-                >
-                  削除
-                </button>
-              )}
-            </div>
-          ) : (
-            <p className="text-[11px] text-gray-400">まだ登録された店舗がありません。下から追加してください。</p>
-          )}
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={newStoreName}
-              onChange={(e) => setNewStoreName(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleAddStore()}
-              placeholder="店舗名を入力して追加"
-              className="flex-1 min-w-0 text-base text-gray-900 px-3 py-2.5 rounded-lg border border-gray-200 focus:outline-none focus:border-blue-400"
-            />
-            <button
-              onClick={handleAddStore}
-              className="shrink-0 text-sm font-bold px-4 py-2.5 rounded-lg bg-gray-100 text-gray-600 active:bg-gray-200 transition"
-            >
-              追加
-            </button>
-          </div>
-        </div>
+        <StoreSelector
+          stores={stores}
+          addStore={addStore}
+          removeStore={removeStore}
+          selectedStore={selectedStore}
+          setSelectedStore={setSelectedStore}
+        />
 
         {/* 連続スキャンの切り替え。店内で棚の商品を次々に確認する用途 */}
         <label className="flex items-center justify-between gap-3 cursor-pointer">
@@ -466,101 +67,29 @@ export default function Home() {
             </span>
           </span>
           <span
-            className={`shrink-0 w-11 h-6 rounded-full transition-colors relative ${continuousMode ? "bg-blue-600" : "bg-gray-300"}`}
+            className={`shrink-0 w-11 h-6 rounded-full transition-colors relative ${scanner.continuousMode ? "bg-blue-600" : "bg-gray-300"}`}
           >
             <input
               type="checkbox"
-              checked={continuousMode}
-              onChange={(e) => setContinuousMode(e.target.checked)}
+              checked={scanner.continuousMode}
+              onChange={(e) => scanner.setContinuousMode(e.target.checked)}
               className="sr-only"
             />
             <span
-              className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${continuousMode ? "left-[22px]" : "left-0.5"}`}
+              className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${scanner.continuousMode ? "left-[22px]" : "left-0.5"}`}
             />
           </span>
         </label>
 
-        {/* カメラ・スキャナー領域 */}
-        <div className="bg-gray-950 h-56 rounded-xl flex flex-col items-center justify-center text-white text-sm relative overflow-hidden border border-gray-800">
-          {isScanning ? (
-            <>
-              {/* カメラ映像を表示するvideo要素 */}
-              <video
-                ref={videoRef}
-                className="w-full h-full object-cover"
-                playsInline
-                muted
-              />
-              {/* スキャン用の照準フレームUI */}
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div className="w-64 h-24 border-2 border-blue-500 rounded-lg bg-transparent opacity-70 relative">
-                  <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-red-500 animate-pulse" />
-                </div>
-              </div>
-              <span className="absolute top-3 left-3 bg-red-600 text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded animate-pulse">
-                REC LIVE
-              </span>
-            </>
-          ) : (
-            <div className="text-center p-6 space-y-4">
-              {scannedCode ? (
-                <div>
-                  <p className="text-xs text-gray-400 uppercase tracking-wider">読み取り完了</p>
-                  <p className="text-xl font-mono font-bold text-blue-400 mt-1">{scannedCode}</p>
-                </div>
-              ) : selectedStore ? (
-                <p className="text-gray-400 text-xs">カメラを起動して商品のバーコード（JAN）をスキャンしてください</p>
-              ) : (
-                <p className="text-amber-400 text-xs">まず読取り店舗を選択してください</p>
-              )}
+        <ScannerView
+          isScanning={scanner.isScanning}
+          videoRef={scanner.videoRef}
+          scannedCode={scanner.scannedCode}
+          selectedStore={selectedStore}
+          onStart={scanner.startScan}
+        />
 
-              <button
-                disabled={!selectedStore}
-                onClick={() => {
-                  reset();
-                  setCameraError(null);
-                  setIsScanning(true);
-                }}
-                className="bg-blue-600 active:bg-blue-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white text-sm font-bold px-6 py-3 rounded-xl shadow-md transition-all active:scale-95"
-              >
-                {scannedCode ? "次の商品をスキャン" : "カメラを起動する"}
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* このセッションで読み取った商品。棚の前で複数を見比べられるようにする。
-            2件以上たまってから出す（1件のときは下の結果表示と重複するため） */}
-        {sessionScans.length > 1 && (
-          <div className="space-y-1.5">
-            <div className="flex items-baseline justify-between gap-2">
-              <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">
-                今回スキャンした商品
-              </span>
-              <button
-                onClick={() => setSessionScans([])}
-                className="text-[11px] font-bold text-gray-400 active:text-gray-600"
-              >
-                クリア
-              </button>
-            </div>
-            <div className="divide-y divide-gray-100 border border-gray-100 rounded-xl overflow-hidden">
-              {sessionScans.map((scan) => (
-                <div key={scan.janCode} className="p-3 bg-white">
-                  <p className="text-sm font-bold text-gray-800 leading-snug">{scan.itemName}</p>
-                  <div className="flex items-center gap-x-3 mt-0.5 text-xs tabular-nums">
-                    <span className="text-gray-500">
-                      定価 {scan.officialPrice !== null ? formatYen(scan.officialPrice) : "未確認"}
-                    </span>
-                    <span className="text-gray-500">
-                      通販 {scan.lowestNewPrice !== null ? formatYen(scan.lowestNewPrice) : "未取得"}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        <SessionScanList scans={scanner.sessionScans} onClear={scanner.clearSessionScans} />
 
         {/* キット名での検索（バーコードが手元に無いとき用） */}
         <KitNameSearch />
@@ -580,7 +109,7 @@ export default function Home() {
               {displayError}
             </div>
             <button
-              onClick={handleResetScan}
+              onClick={scanner.resetScan}
               className="w-full bg-gray-800 active:bg-gray-900 text-white text-sm font-bold py-3 rounded-xl transition"
             >
               もう一度スキャンする
@@ -588,143 +117,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* 結果表示 */}
-        {result && (
-          <div className="space-y-5 animate-fadeIn">
-            {/* 商品名 */}
-            <div className="border-t border-gray-100 pt-4">
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-xs font-semibold uppercase tracking-wider px-2 py-0.5 rounded bg-gray-100 text-gray-600">
-                  検証済み商品名
-                </span>
-                {result.isPremiumBandaiExclusive && (
-                  <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">
-                    プレバン限定
-                  </span>
-                )}
-              </div>
-              <h2 className="text-lg font-bold text-gray-800 mt-1.5 leading-snug">
-                {result.itemName}
-              </h2>
-            </div>
-
-            {/* 定価・最安値の比較 */}
-            <div className="rounded-xl border border-gray-100 divide-y divide-gray-100 overflow-hidden">
-              {/* メーカー希望小売価格（バンダイ公式で確認できた場合のみ） */}
-              <div className="p-4 bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <span className="text-xs text-blue-600 font-medium block">メーカー希望小売価格</span>
-                  {result.officialPrice !== null ? (
-                    <span className="text-2xl font-normal text-blue-900 mt-1 block tabular-nums">
-                      {formatYen(result.officialPrice)}
-                    </span>
-                  ) : (
-                    <span className="text-sm text-gray-400 mt-1 block">未確認</span>
-                  )}
-                </div>
-                {result.officialPrice !== null ? (
-                  <span className="shrink-0 text-xs font-bold px-2 py-1 rounded-full bg-green-100 text-green-700 whitespace-nowrap">
-                    公式照合済み
-                  </span>
-                ) : (
-                  <span className="shrink-0 text-xs font-bold px-2 py-1 rounded-full bg-gray-200 text-gray-600 whitespace-nowrap">
-                    未確認
-                  </span>
-                )}
-              </div>
-
-              {/* 最安値。定価と比べる相手は新品の実売価格なので新品最安を主役にし、
-                  中古相場は下に添える */}
-              <div className="p-4 bg-white">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs text-gray-500 font-medium">通販サイト最安値（新品）</span>
-                  {result.lowestNewPrice !== null ? (
-                    <span className="text-lg font-normal text-gray-900 tabular-nums">
-                      {formatYen(result.lowestNewPrice)}
-                    </span>
-                  ) : (
-                    <span className="text-xs text-gray-400">
-                      {result.lowestUsedPrice !== null ? "新品なし" : "未取得"}
-                    </span>
-                  )}
-                </div>
-                {result.lowestUsedPrice !== null && (
-                  <div className="flex items-center justify-between gap-2 mt-1">
-                    <span className="text-[11px] text-gray-400">中古最安</span>
-                    <span className="text-xs text-gray-500 tabular-nums">
-                      {formatYen(result.lowestUsedPrice)}
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-            <p className="text-[11px] text-gray-400">表示金額はすべて税込です</p>
-
-            {/* 店舗の販売価格（任意） */}
-            {result.scanHistoryId && (
-              <StorePriceInput key={result.scanHistoryId} scanHistoryId={result.scanHistoryId} />
-            )}
-
-            {/* ショップリスト */}
-            {result.offers && result.offers.length > 0 && (
-              <div className="space-y-2.5">
-                <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">
-                  同一商品ショップ（本体価格順）
-                </h3>
-                <div className="divide-y divide-gray-100 border border-gray-100 rounded-xl overflow-hidden bg-gray-50">
-                  {result.offers.map((offer, index) => (
-                    <a
-                      key={index}
-                      href={offer.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-2.5 p-3.5 bg-white active:bg-gray-50 transition-colors"
-                    >
-                      <span className={`shrink-0 text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full ${index === 0 ? "bg-amber-100 text-amber-700" :
-                        index === 1 ? "bg-slate-200 text-slate-700" :
-                          "bg-orange-100 text-orange-700"
-                        }`}>
-                        {index + 1}
-                      </span>
-                      <div className="flex-1 min-w-0">
-                        <span className="text-sm font-bold text-gray-700 block truncate">
-                          {offer.storeName}
-                        </span>
-                        <span className="text-[11px] text-gray-400 mt-0.5 flex items-center gap-1.5">
-                          <span className="shrink-0 px-1 py-px rounded bg-gray-100 text-gray-500 font-bold">
-                            {OFFER_SOURCE_LABEL[offer.source]}
-                          </span>
-                          {offer.condition === "used" && (
-                            <span className="shrink-0 px-1 py-px rounded bg-amber-100 text-amber-700 font-bold">
-                              中古
-                            </span>
-                          )}
-                          <span className="truncate">{formatShipping(offer.shipping)}</span>
-                        </span>
-                      </div>
-                      <span className="shrink-0 text-lg font-normal text-gray-900 tabular-nums">
-                        {formatYen(offer.price)}
-                      </span>
-                      <span className="shrink-0 text-xs text-gray-300">›</span>
-                    </a>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* 再スキャン用のボタンを下に配置 */}
-            <button
-              onClick={handleResetScan}
-              className="w-full border-2 border-dashed border-gray-300 active:border-blue-500 active:bg-blue-50/30 text-gray-600 font-bold py-3 rounded-xl transition text-sm"
-            >
-              続けて別な商品をスキャンする
-            </button>
-
-            <div className="text-xs text-gray-500 text-center bg-gray-100 p-3 rounded-lg border border-gray-200 leading-relaxed">
-              <b>名称安全フィルター作動中:</b> JANコードが一致していても、登録名が本来の商品と乖離している怪しい出品は自動的に非表示にしています。
-            </div>
-          </div>
-        )}
+        {result && <PriceResult result={result} onRescan={scanner.resetScan} />}
       </main>
     </div>
   );
