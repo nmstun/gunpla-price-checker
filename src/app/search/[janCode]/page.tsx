@@ -1,8 +1,9 @@
 "use client";
 
 import { useParams, useSearchParams } from "next/navigation";
-import Link from "next/link";
 import { useMarketPrices } from "@/hooks/useMarketPrices";
+import { PageShell, PageCard } from "@/components/PageShell";
+import { MarketPriceRow } from "@/components/MarketPriceRow";
 import { OfferList } from "@/components/OfferList";
 import { formatYen } from "@/utils/price";
 
@@ -21,29 +22,13 @@ export default function KitSearchDetailPage() {
   const { offers, lowestNewPrice, lowestUsedPrice, loading } = useMarketPrices(params.janCode);
 
   return (
-    <div
-      className="min-h-screen bg-gray-50 flex flex-col items-center font-sans"
-      style={{
-        paddingTop: "max(2rem, env(safe-area-inset-top))",
-        paddingBottom: "max(2rem, env(safe-area-inset-bottom))",
-        paddingLeft: "max(1rem, env(safe-area-inset-left))",
-        paddingRight: "max(1rem, env(safe-area-inset-right))",
-      }}
+    <PageShell
+      title="キット詳細"
+      description="定価・最安値を確認できます"
+      backHref="/"
+      backLabel="戻る"
     >
-      <header className="mb-6 w-full max-w-md">
-        <div className="flex items-start justify-between gap-3">
-          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">キット詳細</h1>
-          <Link
-            href="/"
-            className="shrink-0 text-sm font-bold text-blue-600 hover:text-blue-700 px-3 py-1.5 -mr-3 rounded-lg active:bg-blue-50"
-          >
-            戻る
-          </Link>
-        </div>
-        <p className="text-sm text-gray-500 mt-1">定価・最安値を確認できます</p>
-      </header>
-
-      <main className="w-full max-w-md bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-5">
+      <PageCard spacing={5}>
         <div>
           <h2 className="text-lg font-bold text-gray-800 leading-snug">{title}</h2>
           <p className="text-xs text-gray-400 mt-1">JAN: {params.janCode}</p>
@@ -57,30 +42,11 @@ export default function KitSearchDetailPage() {
               {formatYen(price)}
             </span>
           </div>
-          {/* 定価と比べる相手は新品の実売価格なので新品最安を主役にし、
-              中古相場は副次情報として添える */}
-          <div className="p-4 bg-white">
-            <span className="text-xs text-gray-500 font-medium block">通販サイト最安値（新品）</span>
-            {loading ? (
-              <span className="text-sm text-gray-400 mt-1 flex items-center gap-1.5">
-                <span className="w-3 h-3 border-2 border-gray-300 border-t-transparent rounded-full animate-spin" />
-                取得中...
-              </span>
-            ) : lowestNewPrice !== null ? (
-              <span className="text-2xl font-normal text-gray-900 mt-1 block tabular-nums">
-                {formatYen(lowestNewPrice)}
-              </span>
-            ) : (
-              <span className="text-sm text-gray-400 mt-1 block">
-                {lowestUsedPrice !== null ? "新品の出品が見つかりませんでした" : "取得できませんでした"}
-              </span>
-            )}
-            {!loading && lowestUsedPrice !== null && (
-              <span className="text-xs text-gray-500 mt-1 block tabular-nums">
-                中古最安 {formatYen(lowestUsedPrice)}
-              </span>
-            )}
-          </div>
+          <MarketPriceRow
+            loading={loading}
+            lowestNewPrice={lowestNewPrice}
+            lowestUsedPrice={lowestUsedPrice}
+          />
         </div>
         <p className="text-[11px] text-gray-400">表示金額はすべて税込です</p>
 
@@ -97,7 +63,7 @@ export default function KitSearchDetailPage() {
             バンダイ公式ページを見る
           </a>
         )}
-      </main>
-    </div>
+      </PageCard>
+    </PageShell>
   );
 }

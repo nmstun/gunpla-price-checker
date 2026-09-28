@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import Link from "next/link";
 import {
   fetchScanHistoryEntry,
   fetchPriceHistory,
@@ -10,30 +9,43 @@ import {
   updateOfficialPrice,
   PricePoint,
 } from "@/lib/supabase/scanHistory";
-import {
-  advisePurchase,
-  BUY_VERDICT_CLASS,
-  comparePrices,
-  formatYen,
-  parsePriceInput,
-} from "@/utils/price";
 import { useMarketPrices } from "@/hooks/useMarketPrices";
+import { PageShell, PageCard } from "@/components/PageShell";
+import { EditablePriceField } from "@/components/EditablePriceField";
+import { PurchaseAdviceBanner } from "@/components/PurchaseAdviceBanner";
+import { PriceTrendChart } from "@/components/PriceTrendChart";
+import { MarketPriceRow } from "@/components/MarketPriceRow";
 import { OfferList } from "@/components/OfferList";
 import { ScanHistoryEntry, RefreshPriceResult } from "@/types";
+
+// 定価の出どころを示すバッジ。バンダイ公式で照合できた値・ユーザーの手動入力値・
+// 未確認の3状態を区別する
+function OfficialPriceBadge({ price, isManual }: { price: number | null; isManual: boolean }) {
+  if (price === null) {
+    return (
+      <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-gray-200 text-gray-600 whitespace-nowrap">
+        未確認
+      </span>
+    );
+  }
+  if (isManual) {
+    return (
+      <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 whitespace-nowrap">
+        手動入力
+      </span>
+    );
+  }
+  return (
+    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-700 whitespace-nowrap">
+      公式照合済み
+    </span>
+  );
+}
 
 export default function HistoryDetailPage() {
   const params = useParams<{ id: string }>();
   const [entry, setEntry] = useState<ScanHistoryEntry | null>(null);
   const [loading, setLoading] = useState(true);
-
-  const [priceInput, setPriceInput] = useState("");
-  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "error">("idle");
-  const [isEditingStorePrice, setIsEditingStorePrice] = useState(false);
-
-  // 定価の手動入力・編集用（自動取得できない商品向け）
-  const [officialInput, setOfficialInput] = useState("");
-  const [officialSaveStatus, setOfficialSaveStatus] = useState<"idle" | "saving" | "error">("idle");
-  const [isEditingOfficialPrice, setIsEditingOfficialPrice] = useState(false);
 
   const [refreshing, setRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
@@ -63,7 +75,6 @@ export default function HistoryDetailPage() {
         });
       }
       setEntry(data);
-      setPriceInput(data?.storePrice?.toString() ?? "");
       setLoading(false);
     }
 
@@ -73,66 +84,20 @@ export default function HistoryDetailPage() {
     };
   }, [params.id]);
 
-  const handleStartEditStorePrice = () => {
-    if (!entry) return;
-    setPriceInput(entry.storePrice?.toString() ?? "");
-    setSaveStatus("idle");
-    setIsEditingStorePrice(true);
-  };
-
-  const handleCancelEditStorePrice = () => {
-    setSaveStatus("idle");
-    setIsEditingStorePrice(false);
-  };
-
-  const handleSaveStorePrice = async () => {
-    if (!entry) return;
-    const parsed = parsePriceInput(priceInput);
-    if (!parsed.ok) {
-      setSaveStatus("error");
-      return;
-    }
-    const price = parsed.price;
-    setSaveStatus("saving");
+  // 店舗価格・定価の保存。成功したら画面上のentryにも反映してtrueを返す
+  // （trueなら入力欄が閉じ、falseなら入力欄にエラーが出る）
+  const handleSaveStorePrice = async (price: number | null) => {
+    if (!entry) return false;
     const ok = await updateStorePrice(entry.id, price);
-    if (ok) {
-      setEntry({ ...entry, storePrice: price });
-      setSaveStatus("idle");
-      setIsEditingStorePrice(false);
-    } else {
-      setSaveStatus("error");
-    }
+    if (ok) setEntry({ ...entry, storePrice: price });
+    return ok;
   };
 
-  const handleStartEditOfficialPrice = () => {
-    if (!entry) return;
-    setOfficialInput(entry.officialPrice?.toString() ?? "");
-    setOfficialSaveStatus("idle");
-    setIsEditingOfficialPrice(true);
-  };
-
-  const handleCancelEditOfficialPrice = () => {
-    setOfficialSaveStatus("idle");
-    setIsEditingOfficialPrice(false);
-  };
-
-  const handleSaveOfficialPrice = async () => {
-    if (!entry) return;
-    const parsed = parsePriceInput(officialInput);
-    if (!parsed.ok) {
-      setOfficialSaveStatus("error");
-      return;
-    }
-    const price = parsed.price;
-    setOfficialSaveStatus("saving");
+  const handleSaveOfficialPrice = async (price: number | null) => {
+    if (!entry) return false;
     const ok = await updateOfficialPrice(entry.id, price);
-    if (ok) {
-      setEntry({ ...entry, officialPrice: price, officialPriceIsManual: price !== null });
-      setOfficialSaveStatus("idle");
-      setIsEditingOfficialPrice(false);
-    } else {
-      setOfficialSaveStatus("error");
-    }
+    if (ok) setEntry({ ...entry, officialPrice: price, officialPriceIsManual: price !== null });
+    return ok;
   };
 
   const handleRefresh = async () => {
@@ -169,29 +134,13 @@ export default function HistoryDetailPage() {
   };
 
   return (
-    <div
-      className="min-h-screen bg-gray-50 flex flex-col items-center font-sans"
-      style={{
-        paddingTop: "max(2rem, env(safe-area-inset-top))",
-        paddingBottom: "max(2rem, env(safe-area-inset-bottom))",
-        paddingLeft: "max(1rem, env(safe-area-inset-left))",
-        paddingRight: "max(1rem, env(safe-area-inset-right))",
-      }}
+    <PageShell
+      title="履歴詳細"
+      description="定価・最安値・店舗価格を比較できます"
+      backHref="/history"
+      backLabel="一覧へ戻る"
     >
-      <header className="mb-6 w-full max-w-md">
-        <div className="flex items-start justify-between gap-3">
-          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">履歴詳細</h1>
-          <Link
-            href="/history"
-            className="shrink-0 text-sm font-bold text-blue-600 hover:text-blue-700 px-3 py-1.5 -mr-3 rounded-lg active:bg-blue-50"
-          >
-            一覧へ戻る
-          </Link>
-        </div>
-        <p className="text-sm text-gray-500 mt-1">定価・最安値・店舗価格を比較できます</p>
-      </header>
-
-      <main className="w-full max-w-md bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-5">
+      <PageCard spacing={5}>
         {loading && (
           <div className="text-center py-8 text-gray-500 text-sm animate-pulse">読み込み中...</div>
         )}
@@ -222,292 +171,64 @@ export default function HistoryDetailPage() {
               <p className="text-xs text-gray-400 mt-1">JAN: {entry.janCode}</p>
             </div>
 
-            {/* 店頭で買うべきかを最初に言い切る。定価との差だけでは決められず、
-                実際の判断は「定価・店頭価格・通販最安値」の三者関係で決まるため、
-                通販の方が明確に安いなら定価以下でも見送りと出す */}
-            {(() => {
-              const advice = advisePurchase({
-                officialPrice: entry.officialPrice,
-                storePrice: entry.storePrice,
-                lowestNewPrice,
-              });
-              if (!advice) return null;
-              const comparison =
-                entry.officialPrice !== null && entry.storePrice !== null
-                  ? comparePrices(entry.officialPrice, entry.storePrice)
-                  : null;
-              return (
-                <div className={`rounded-xl border px-4 py-3 ${BUY_VERDICT_CLASS[advice.verdict]}`}>
-                  <p className="text-lg font-bold leading-snug">{advice.headline}</p>
-                  <p className="text-sm font-bold mt-0.5 tabular-nums">{advice.reason}</p>
-                  <p className="text-xs mt-1.5 opacity-80 tabular-nums">
-                    {entry.officialPrice !== null && `定価 ${formatYen(entry.officialPrice)}`}
-                    {entry.storePrice !== null && ` / 店頭 ${formatYen(entry.storePrice)}`}
-                    {lowestNewPrice !== null && ` / 通販 ${formatYen(lowestNewPrice)}`}
-                  </p>
-                  {comparison !== null && comparison.verdict === "markup" && (
-                    <p className="text-xs mt-0.5 opacity-80 tabular-nums">
-                      店頭は定価より {formatYen(comparison.diff)} 高い
-                      {comparison.ratioLabel && `（定価の${comparison.ratioLabel}）`}
-                    </p>
-                  )}
-                </div>
-              );
-            })()}
+            <PurchaseAdviceBanner
+              officialPrice={entry.officialPrice}
+              storePrice={entry.storePrice}
+              lowestNewPrice={lowestNewPrice}
+            />
 
             {/* 定価・最安値・店舗価格の比較。3行ともラベルを1行使い切り、
                 値と操作ボタンを次の行に置くことで、狭い画面でも折り返さないようにしている */}
             <div className="rounded-xl border border-gray-100 divide-y divide-gray-100 overflow-hidden">
-              {/* メーカー希望小売価格。バンダイ公式で照合できた値・ユーザーの手動入力値・
-                  未確認の3状態をバッジで区別する。自動取得できない商品向けに手動編集できる */}
-              <div className="p-4 bg-gradient-to-br from-blue-50 to-indigo-50">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs text-blue-600 font-medium">メーカー希望小売価格</span>
-                  {!isEditingOfficialPrice && (
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      {entry.officialPrice === null ? (
-                        <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-gray-200 text-gray-600 whitespace-nowrap">
-                          未確認
-                        </span>
-                      ) : entry.officialPriceIsManual ? (
-                        <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 whitespace-nowrap">
-                          手動入力
-                        </span>
-                      ) : (
-                        <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-700 whitespace-nowrap">
-                          公式照合済み
-                        </span>
-                      )}
-                      <button
-                        onClick={handleStartEditOfficialPrice}
-                        className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-white/70 text-blue-700 active:bg-white transition whitespace-nowrap"
-                      >
-                        編集
-                      </button>
-                    </div>
-                  )}
-                </div>
-                {!isEditingOfficialPrice && (
-                  entry.officialPrice !== null ? (
-                    <span className="text-2xl font-normal text-blue-900 mt-1 block tabular-nums">
-                      {formatYen(entry.officialPrice)}
-                    </span>
-                  ) : (
-                    <span className="text-sm text-gray-400 mt-1 block">未確認</span>
-                  )
-                )}
+              {/* メーカー希望小売価格。自動取得できない商品向けに手動編集できる */}
+              <EditablePriceField
+                label="メーカー希望小売価格"
+                labelClassName="text-xs text-blue-600 font-medium"
+                containerClassName="bg-gradient-to-br from-blue-50 to-indigo-50"
+                valueClassName="text-blue-900"
+                emptyLabel="未確認"
+                value={entry.officialPrice}
+                badge={
+                  <OfficialPriceBadge
+                    price={entry.officialPrice}
+                    isManual={entry.officialPriceIsManual}
+                  />
+                }
+                editButtonClassName="text-[11px] font-bold px-2 py-0.5 rounded-full bg-white/70 text-blue-700 active:bg-white transition whitespace-nowrap"
+                placeholder="例: 2200"
+                helpText="手動入力した定価は「手動入力」と表示されます。空欄で保存すると未確認に戻せます。"
+                onSave={handleSaveOfficialPrice}
+              />
 
-                {isEditingOfficialPrice && (
-                  <div className="mt-1">
-                    <div className="flex gap-2">
-                      <div className="flex-1 relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xl pointer-events-none">
-                          ¥
-                        </span>
-                        <input
-                          type="number"
-                          inputMode="numeric"
-                          autoFocus
-                          value={officialInput}
-                          onChange={(e) => {
-                            setOfficialInput(e.target.value);
-                            setOfficialSaveStatus("idle");
-                          }}
-                          placeholder="例: 2200"
-                          className="w-full text-2xl font-normal text-gray-900 pl-8 pr-3 py-1.5 rounded-lg border border-gray-200 bg-white focus:outline-none focus:border-blue-400"
-                        />
-                      </div>
-                      <button
-                        onClick={handleSaveOfficialPrice}
-                        disabled={officialSaveStatus === "saving"}
-                        className="shrink-0 self-center text-sm font-bold px-4 py-2 rounded-lg bg-white border border-gray-200 text-gray-600 active:bg-gray-100 transition disabled:opacity-50"
-                      >
-                        保存
-                      </button>
-                      <button
-                        onClick={handleCancelEditOfficialPrice}
-                        disabled={officialSaveStatus === "saving"}
-                        className="shrink-0 self-center text-sm font-bold px-3 py-2 rounded-lg text-gray-400 active:bg-gray-100 transition disabled:opacity-50"
-                      >
-                        取消
-                      </button>
-                    </div>
-                    <p className="text-[11px] text-gray-500 mt-1.5">
-                      手動入力した定価は「手動入力」と表示されます。空欄で保存すると未確認に戻せます。
-                    </p>
-                    {officialSaveStatus === "error" && (
-                      <p className="text-[11px] text-red-600 mt-1">保存に失敗しました。もう一度お試しください</p>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* 最安値（画面表示時に自動取得。保存はしない）。定価と比べる相手は
-                  新品の実売価格なので新品最安を主役にし、中古相場は副次情報として添える */}
-              <div className="p-4 bg-white">
-                <span className="text-xs text-gray-500 font-medium block">通販サイト最安値（新品）</span>
-                {lowestMarketLoading ? (
-                  <span className="text-sm text-gray-400 mt-1 flex items-center gap-1.5">
-                    <span className="w-3 h-3 border-2 border-gray-300 border-t-transparent rounded-full animate-spin" />
-                    取得中...
-                  </span>
-                ) : lowestNewPrice !== null ? (
-                  <span className="text-2xl font-normal text-gray-900 mt-1 block tabular-nums">
-                    {formatYen(lowestNewPrice)}
-                  </span>
-                ) : (
-                  <span className="text-sm text-gray-400 mt-1 block">
-                    {lowestUsedPrice !== null ? "新品の出品が見つかりませんでした" : "取得できませんでした"}
-                  </span>
-                )}
-                {!lowestMarketLoading && lowestUsedPrice !== null && (
-                  <span className="text-xs text-gray-500 mt-1 block tabular-nums">
-                    中古最安 {formatYen(lowestUsedPrice)}
-                  </span>
-                )}
-              </div>
+              {/* 最安値（画面表示時に自動取得。保存はしない） */}
+              <MarketPriceRow
+                loading={lowestMarketLoading}
+                lowestNewPrice={lowestNewPrice}
+                lowestUsedPrice={lowestUsedPrice}
+              />
 
               {/* 店舗価格（任意・編集可）。普段は他の2行と同じ「ラベル→大きな値」の
                   表示のみで、「編集」ボタンを押したときだけ入力欄に切り替える */}
-              <div className="p-4 bg-gray-50">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs text-gray-500 font-medium">この店舗での販売価格（税込・任意）</span>
-                  {!isEditingStorePrice && (
-                    <button
-                      onClick={handleStartEditStorePrice}
-                      className="shrink-0 text-[11px] font-bold px-2 py-0.5 rounded-full bg-gray-200 text-gray-600 active:bg-gray-300 transition whitespace-nowrap"
-                    >
-                      編集
-                    </button>
-                  )}
-                </div>
-                {!isEditingStorePrice && (
-                  entry.storePrice !== null ? (
-                    <span className="text-2xl font-normal text-gray-900 mt-1 block tabular-nums">
-                      {formatYen(entry.storePrice)}
-                    </span>
-                  ) : (
-                    <span className="text-sm text-gray-400 mt-1 block">未入力</span>
-                  )
-                )}
-
-                {isEditingStorePrice && (
-                  <div className="mt-1">
-                    <div className="flex gap-2">
-                      <div className="flex-1 relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xl pointer-events-none">
-                          ¥
-                        </span>
-                        <input
-                          type="number"
-                          inputMode="numeric"
-                          autoFocus
-                          value={priceInput}
-                          onChange={(e) => {
-                            setPriceInput(e.target.value);
-                            setSaveStatus("idle");
-                          }}
-                          placeholder="税込価格（例: 6800）"
-                          className="w-full text-2xl font-normal text-gray-900 pl-8 pr-3 py-1.5 rounded-lg border border-gray-200 bg-white focus:outline-none focus:border-blue-400"
-                        />
-                      </div>
-                      <button
-                        onClick={handleSaveStorePrice}
-                        disabled={saveStatus === "saving"}
-                        className="shrink-0 self-center text-sm font-bold px-4 py-2 rounded-lg bg-white border border-gray-200 text-gray-600 active:bg-gray-100 transition disabled:opacity-50"
-                      >
-                        保存
-                      </button>
-                      <button
-                        onClick={handleCancelEditStorePrice}
-                        disabled={saveStatus === "saving"}
-                        className="shrink-0 self-center text-sm font-bold px-3 py-2 rounded-lg text-gray-400 active:bg-gray-100 transition disabled:opacity-50"
-                      >
-                        取消
-                      </button>
-                    </div>
-                    <p className="text-[11px] text-gray-500 mt-1.5">
-                      棚札の<span className="font-bold">税込価格</span>を入力してください（定価・通販価格と揃えて比較するため）
-                    </p>
-                    {saveStatus === "error" && (
-                      <p className="text-[11px] text-red-600 mt-1.5">保存に失敗しました。もう一度お試しください</p>
-                    )}
-                  </div>
-                )}
-              </div>
+              <EditablePriceField
+                label="この店舗での販売価格（税込・任意）"
+                labelClassName="text-xs text-gray-500 font-medium"
+                containerClassName="bg-gray-50"
+                valueClassName="text-gray-900"
+                emptyLabel="未入力"
+                value={entry.storePrice}
+                editButtonClassName="shrink-0 text-[11px] font-bold px-2 py-0.5 rounded-full bg-gray-200 text-gray-600 active:bg-gray-300 transition whitespace-nowrap"
+                placeholder="税込価格（例: 6800）"
+                helpText={
+                  <>
+                    棚札の<span className="font-bold">税込価格</span>を入力してください（定価・通販価格と揃えて比較するため）
+                  </>
+                }
+                onSave={handleSaveStorePrice}
+              />
             </div>
             <p className="text-[11px] text-gray-400">表示金額はすべて税込です</p>
 
-            {/* 相場の推移。同じJANコードを過去にスキャンした時点の通販最安値を並べ、
-                プレ値化が進んでいるかを見る。最安値を記録する前の古い履歴は値を持たないため除く */}
-            {(() => {
-              const points = pricePoints.filter((p) => p.lowestNewPrice !== null);
-              if (points.length === 0) return null;
-              const previous = points[points.length - 1];
-              const change =
-                lowestNewPrice !== null && previous.lowestNewPrice !== null
-                  ? lowestNewPrice - previous.lowestNewPrice
-                  : null;
-              const maxPrice = Math.max(
-                ...points.map((p) => p.lowestNewPrice as number),
-                lowestNewPrice ?? 0
-              );
-              return (
-                <div className="space-y-2">
-                  <div className="flex items-baseline justify-between gap-2">
-                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">
-                      通販最安値の推移
-                    </h3>
-                    {change !== null && (
-                      <span
-                        className={`text-xs font-bold tabular-nums ${change > 0 ? "text-red-600" : change < 0 ? "text-green-600" : "text-gray-400"}`}
-                      >
-                        {/* 比較対象は記録の中で最も新しいもの。表示中のスキャン自身とは限らないため
-                            「前回スキャン」ではなく「直近の記録」と表現する */}
-                        直近の記録から
-                        {change > 0 ? `+${formatYen(change)}` : change < 0 ? `-${formatYen(Math.abs(change))}` : "変動なし"}
-                      </span>
-                    )}
-                  </div>
-                  <div className="space-y-1.5 rounded-xl border border-gray-100 p-3">
-                    {points.map((point, index) => (
-                      <div key={index} className="flex items-center gap-2">
-                        <span className="shrink-0 w-20 text-[11px] text-gray-400 tabular-nums">
-                          {new Date(point.scannedAt).toLocaleDateString("ja-JP")}
-                        </span>
-                        {/* 外側を固定幅のトラックにし、内側のバーで比率を表す。
-                            バー自体をflex項目にすると縮小が効いて全て同じ長さに潰れる */}
-                        <span className="flex-1 h-2 rounded-full bg-gray-100 overflow-hidden">
-                          <span
-                            className="block h-full rounded-full bg-gray-400"
-                            style={{
-                              width: `${Math.max(4, ((point.lowestNewPrice as number) / maxPrice) * 100)}%`,
-                            }}
-                          />
-                        </span>
-                        <span className="shrink-0 text-xs text-gray-600 tabular-nums">
-                          {formatYen(point.lowestNewPrice as number)}
-                        </span>
-                      </div>
-                    ))}
-                    {lowestNewPrice !== null && (
-                      <div className="flex items-center gap-2 pt-1.5 border-t border-gray-100">
-                        <span className="shrink-0 w-20 text-[11px] font-bold text-gray-500">現在</span>
-                        <span className="flex-1 h-2 rounded-full bg-gray-100 overflow-hidden">
-                          <span
-                            className="block h-full rounded-full bg-blue-500"
-                            style={{ width: `${Math.max(4, (lowestNewPrice / maxPrice) * 100)}%` }}
-                          />
-                        </span>
-                        <span className="shrink-0 text-xs font-bold text-gray-900 tabular-nums">
-                          {formatYen(lowestNewPrice)}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })()}
+            <PriceTrendChart points={pricePoints} currentPrice={lowestNewPrice} />
 
             {/* ショップリスト（最安値TOP3。スキャン結果画面と同じ表示） */}
             {offers.length > 0 && <OfferList offers={offers} />}
@@ -528,7 +249,7 @@ export default function HistoryDetailPage() {
             </div>
           </>
         )}
-      </main>
-    </div>
+      </PageCard>
+    </PageShell>
   );
 }

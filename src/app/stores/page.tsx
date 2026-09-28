@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
-import Link from "next/link";
 import { useFavoriteStores, FavoriteStore } from "@/hooks/useFavoriteStores";
 import { useSelectedStore } from "@/hooks/useSelectedStore";
 import { fetchScanHistory } from "@/lib/supabase/scanHistory";
 import { calculateStoreTendencies, formatDiffRatio, StoreTendency } from "@/utils/storeTendency";
+import { PageShell, PageCard } from "@/components/PageShell";
 
 // Leafletは初期化時にwindow/documentを触るためサーバー側では実行できない。
 // クライアント側でだけ読み込む（地図は初期表示に必須ではないので遅延読み込みで十分）
@@ -97,29 +97,13 @@ export default function StoresPage() {
   };
 
   return (
-    <div
-      className="min-h-screen bg-gray-50 flex flex-col items-center font-sans"
-      style={{
-        paddingTop: "max(2rem, env(safe-area-inset-top))",
-        paddingBottom: "max(2rem, env(safe-area-inset-bottom))",
-        paddingLeft: "max(1rem, env(safe-area-inset-left))",
-        paddingRight: "max(1rem, env(safe-area-inset-right))",
-      }}
+    <PageShell
+      title="店舗管理"
+      description="住所を登録した店舗は地図にまとめて表示されます"
+      backHref="/history"
+      backLabel="履歴へ戻る"
     >
-      <header className="mb-6 w-full max-w-md">
-        <div className="flex items-start justify-between gap-3">
-          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">店舗管理</h1>
-          <Link
-            href="/history"
-            className="shrink-0 text-sm font-bold text-blue-600 hover:text-blue-700 px-3 py-1.5 -mr-3 rounded-lg active:bg-blue-50"
-          >
-            履歴へ戻る
-          </Link>
-        </div>
-        <p className="text-sm text-gray-500 mt-1">住所を登録した店舗は地図にまとめて表示されます</p>
-      </header>
-
-      <main className="w-full max-w-md bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-4">
+      <PageCard spacing={4}>
         {mappedStores.length > 0 && (
           <div className="space-y-1.5">
             <div className="flex items-baseline justify-between gap-2">
@@ -298,7 +282,7 @@ export default function StoresPage() {
             追加
           </button>
         </div>
-      </main>
-    </div>
+      </PageCard>
+    </PageShell>
   );
 }

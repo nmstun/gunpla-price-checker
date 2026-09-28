@@ -151,14 +151,19 @@ src/
 │   │   └── StoreMap.tsx          # Leaflet+OpenStreetMapの地図本体（登録店舗を番号付きピンで一括表示）
 │   ├── layout.tsx
 │   └── page.tsx                  # スキャン画面の組み立てのみ（ロジックはhooks、UIパーツはcomponentsに分割）
-├── components/                   # スキャン画面（app/page.tsx）のUIパーツ
+├── components/                   # 各画面のUIパーツ（PageShell/PageCardは全画面共通の外枠・ヘッダー）
 │   ├── StoreSelector.tsx         # 読取り店舗の選択・追加・削除（登録店舗＋scan_history由来の店舗名を統合して表示）
 │   ├── ScannerView.tsx           # カメラ映像・照準フレーム・起動ボタン
 │   ├── SessionScanList.tsx       # 連続スキャンで今回読み取った商品の積み上げ表示（2件以上で表示）
 │   ├── KitNameSearch.tsx         # キット名検索（バーコード不要）の入力・結果一覧
 │   ├── PriceResult.tsx           # スキャン結果（商品名・定価と最安値の比較・店舗価格入力・再スキャン導線）
 │   ├── OfferList.tsx             # 同一商品ショップ一覧（本体価格順。スキャン結果・履歴詳細・キット詳細で共用）
-│   └── StorePriceInput.tsx       # この店舗での販売価格（税込・任意）の入力・保存
+│   ├── StorePriceInput.tsx       # この店舗での販売価格（税込・任意）の入力・保存（スキャン結果画面用）
+│   ├── PageShell.tsx             # 全画面共通の外枠（セーフエリア余白・ヘッダー）PageShell と本文カード PageCard
+│   ├── EditablePriceField.tsx    # 金額の「表示⇄編集」切り替え欄（履歴詳細の定価・店舗価格で共用）
+│   ├── PurchaseAdviceBanner.tsx  # 店頭で買うべきかの判定バナー（履歴詳細）
+│   ├── PriceTrendChart.tsx       # 通販最安値の推移グラフ（履歴詳細）
+│   └── MarketPriceRow.tsx        # 通販サイト最安値（新品＋中古）の1行（履歴詳細・キット詳細で共用）
 ├── hooks/
 │   ├── useBarcodeScanner.ts      # カメラ制御・JAN読み取り・連続スキャン・セッション内の積み上げ（コールバックからはrefで最新値を参照し、店舗切替でカメラが再起動しないようにしている）
 │   ├── useKitSearchState.ts      # キット名検索のキーワード・結果をsessionStorageに保持（useSyncExternalStore）

@@ -9,6 +9,7 @@ import { detectGrade } from "@/utils/grade";
 import { compareJa } from "@/utils/sort";
 import { comparePrices, formatYen, VERDICT_PILL_CLASS } from "@/utils/price";
 import { ScanHistoryEntry } from "@/types";
+import { PageShell, PageCard } from "@/components/PageShell";
 
 const DELETE_WIDTH = 88;
 
@@ -230,31 +231,13 @@ export default function HistoryPage() {
   }, [entries, selectedStore, selectedGrade]);
 
   return (
-    <div
-      className="min-h-screen bg-gray-50 flex flex-col items-center font-sans"
-      style={{
-        paddingTop: "max(2rem, env(safe-area-inset-top))",
-        paddingBottom: "max(2rem, env(safe-area-inset-bottom))",
-        paddingLeft: "max(1rem, env(safe-area-inset-left))",
-        paddingRight: "max(1rem, env(safe-area-inset-right))",
-      }}
+    <PageShell
+      title="スキャン履歴"
+      description="タップして詳細・最安値を確認"
+      backHref="/"
+      backLabel="スキャンへ戻る"
     >
-      <header className="mb-6 w-full max-w-md">
-        <div className="flex items-start justify-between gap-3">
-          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
-            スキャン履歴
-          </h1>
-          <Link
-            href="/"
-            className="shrink-0 text-sm font-bold text-blue-600 hover:text-blue-700 px-3 py-1.5 -mr-3 rounded-lg active:bg-blue-50"
-          >
-            スキャンへ戻る
-          </Link>
-        </div>
-        <p className="text-sm text-gray-500 mt-1">タップして詳細・最安値を確認</p>
-      </header>
-
-      <main className="w-full max-w-md bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-4">
+      <PageCard spacing={4}>
         {/* 絞り込みツールバー。店舗管理への導線もここにまとめ、カード内で
             リンクだけが宙に浮いて見えないようにしている */}
         <div className="space-y-2">
@@ -328,7 +311,7 @@ export default function HistoryPage() {
             ))}
           </div>
         )}
-      </main>
-    </div>
+      </PageCard>
+    </PageShell>
   );
 }

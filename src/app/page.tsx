@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useCheckPrice } from "@/hooks/useCheckPrice";
 import { useFavoriteStores } from "@/hooks/useFavoriteStores";
 import { useSelectedStore } from "@/hooks/useSelectedStore";
@@ -10,6 +9,7 @@ import { ScannerView } from "@/components/ScannerView";
 import { SessionScanList } from "@/components/SessionScanList";
 import { KitNameSearch } from "@/components/KitNameSearch";
 import { PriceResult } from "@/components/PriceResult";
+import { PageShell, PageCard } from "@/components/PageShell";
 
 export default function Home() {
   const { result, loading, error, checkPrice, reset } = useCheckPrice();
@@ -23,33 +23,13 @@ export default function Home() {
   const displayError = error || scanner.cameraError;
 
   return (
-    <div
-      className="min-h-screen bg-gray-50 flex flex-col items-center font-sans"
-      style={{
-        paddingTop: "max(2rem, env(safe-area-inset-top))",
-        paddingBottom: "max(2rem, env(safe-area-inset-bottom))",
-        paddingLeft: "max(1rem, env(safe-area-inset-left))",
-        paddingRight: "max(1rem, env(safe-area-inset-right))",
-      }}
+    <PageShell
+      title="ガンプラ定価チェッカー"
+      description="カメラをバーコードにかざして転売価格を見破る"
+      backHref="/history"
+      backLabel="履歴"
     >
-      {/* タイトルと戻り導線を同じ行に並べ、説明文は次の行で幅を使い切らせる。
-          横並びのままだと狭い画面でタイトル・説明文が細かく折り返してしまうため */}
-      <header className="mb-6 w-full max-w-md">
-        <div className="flex items-start justify-between gap-3">
-          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
-            ガンプラ定価チェッカー
-          </h1>
-          <Link
-            href="/history"
-            className="shrink-0 text-sm font-bold text-blue-600 hover:text-blue-700 px-3 py-1.5 -mr-3 rounded-lg active:bg-blue-50"
-          >
-            履歴
-          </Link>
-        </div>
-        <p className="text-sm text-gray-500 mt-1">カメラをバーコードにかざして転売価格を見破る</p>
-      </header>
-
-      <main className="w-full max-w-md bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-6">
+      <PageCard spacing={6}>
         <StoreSelector
           stores={stores}
           addStore={addStore}
@@ -118,7 +98,7 @@ export default function Home() {
         )}
 
         {result && <PriceResult result={result} onRescan={scanner.resetScan} />}
-      </main>
-    </div>
+      </PageCard>
+    </PageShell>
   );
 }
