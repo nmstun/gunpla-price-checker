@@ -153,7 +153,7 @@ src/
 │   │   └── StoreMap.tsx          # Leaflet+OpenStreetMapの地図本体（登録店舗を番号付きピンで一括表示）
 │   ├── layout.tsx
 │   └── page.tsx                  # スキャン画面の組み立てのみ（ロジックはhooks、UIパーツはcomponentsに分割）
-├── components/                   # 各画面のUIパーツ（PageShell/PageCardは全画面共通の外枠・ヘッダー）
+├── components/                   # 各画面のUIパーツ（PageShell/PageCardは全画面共通の外枠・ヘッダー）。店舗名・URL・住所の3入力はapp/stores/page.tsx内のStoreFormFields（新規追加・編集で共通）
 │   ├── StoreSelector.tsx         # 読取り店舗の選択・追加・削除（登録店舗＋scan_history由来の店舗名を統合して表示）
 │   ├── ScannerView.tsx           # カメラ映像・照準フレーム・起動ボタン
 │   ├── SessionScanList.tsx       # 連続スキャンで今回読み取った商品の積み上げ表示（2件以上で表示）

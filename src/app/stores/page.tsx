@@ -27,6 +27,48 @@ interface StoreFormValue {
 
 const EMPTY_FORM: StoreFormValue = { name: "", address: "", url: "" };
 
+// 店舗名・URL・住所の3入力。新規追加・編集の両方で見た目を揃えるための共通部品
+function StoreFormFields({
+  value,
+  onChange,
+  namePlaceholder = "店舗名",
+  addressPlaceholder = "住所（任意）",
+  autoFocusName = false,
+}: {
+  value: StoreFormValue;
+  onChange: (value: StoreFormValue) => void;
+  namePlaceholder?: string;
+  addressPlaceholder?: string;
+  autoFocusName?: boolean;
+}) {
+  return (
+    <>
+      <input
+        type="text"
+        autoFocus={autoFocusName}
+        value={value.name}
+        onChange={(e) => onChange({ ...value, name: e.target.value })}
+        placeholder={namePlaceholder}
+        className="w-full text-base text-gray-900 px-3 py-2.5 rounded-lg border border-gray-200 bg-white focus:outline-none focus:border-blue-400"
+      />
+      <input
+        type="text"
+        value={value.url}
+        onChange={(e) => onChange({ ...value, url: e.target.value })}
+        placeholder="URL（任意）"
+        className="w-full text-sm text-gray-900 px-3 py-2.5 rounded-lg border border-gray-200 bg-white focus:outline-none focus:border-blue-400"
+      />
+      <input
+        type="text"
+        value={value.address}
+        onChange={(e) => onChange({ ...value, address: e.target.value })}
+        placeholder={addressPlaceholder}
+        className="w-full text-sm text-gray-900 px-3 py-2.5 rounded-lg border border-gray-200 bg-white focus:outline-none focus:border-blue-400"
+      />
+    </>
+  );
+}
+
 export default function StoresPage() {
   // この画面だけが地図を出すので、座標が未設定の店舗の補完もここで行う
   const { stores, addStore, removeStore, updateStore } = useFavoriteStores({ geocodeMissing: true });
@@ -132,28 +174,7 @@ export default function StoresPage() {
               <div key={store.name} className="rounded-xl border border-gray-100 p-4 bg-gray-50">
                 {editingName === store.name ? (
                   <div className="space-y-2">
-                    <input
-                      type="text"
-                      autoFocus
-                      value={editForm.name}
-                      onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                      placeholder="店舗名"
-                      className="w-full text-base text-gray-900 px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:border-blue-400"
-                    />
-                    <input
-                      type="text"
-                      value={editForm.url}
-                      onChange={(e) => setEditForm({ ...editForm, url: e.target.value })}
-                      placeholder="URL（任意）"
-                      className="w-full text-sm text-gray-900 px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:border-blue-400"
-                    />
-                    <input
-                      type="text"
-                      value={editForm.address}
-                      onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
-                      placeholder="住所（任意）"
-                      className="w-full text-sm text-gray-900 px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:border-blue-400"
-                    />
+                    <StoreFormFields value={editForm} onChange={setEditForm} autoFocusName />
                     <div className="flex gap-2">
                       <button
                         onClick={handleSaveEdit}
@@ -253,26 +274,10 @@ export default function StoresPage() {
           <span className="text-xs font-bold text-gray-500 uppercase tracking-wider block">
             店舗を追加
           </span>
-          <input
-            type="text"
-            value={newStore.name}
-            onChange={(e) => setNewStore({ ...newStore, name: e.target.value })}
-            placeholder="店舗名"
-            className="w-full text-base text-gray-900 px-3 py-2.5 rounded-lg border border-gray-200 focus:outline-none focus:border-blue-400"
-          />
-          <input
-            type="text"
-            value={newStore.url}
-            onChange={(e) => setNewStore({ ...newStore, url: e.target.value })}
-            placeholder="URL（任意）"
-            className="w-full text-base text-gray-900 px-3 py-2.5 rounded-lg border border-gray-200 focus:outline-none focus:border-blue-400"
-          />
-          <input
-            type="text"
-            value={newStore.address}
-            onChange={(e) => setNewStore({ ...newStore, address: e.target.value })}
-            placeholder="住所（任意・地図表示に使います）"
-            className="w-full text-base text-gray-900 px-3 py-2.5 rounded-lg border border-gray-200 focus:outline-none focus:border-blue-400"
+          <StoreFormFields
+            value={newStore}
+            onChange={setNewStore}
+            addressPlaceholder="住所（任意・地図表示に使います）"
           />
           <button
             onClick={handleAdd}
